@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>养个石头 · DIY 手链</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <button class="icon-button" type="button" aria-label="返回" onclick="history.back()">‹</button>
+        <h1>养个石头</h1>
+        <div class="topbar-actions" aria-label="页面操作">
+          <button class="round-action" type="button" aria-label="更多操作">•••</button>
+          <button class="round-action" type="button" aria-label="最小化">−</button>
+          <button class="round-action" type="button" aria-label="关闭">⊙</button>
+        </div>
+      </header>
+
+      <section class="status-row" aria-label="手链状态">
+        <span class="notice-pill">? 使用须知</span>
+        <span id="count-status" class="status-pill">珠子数量不足（0/16）</span>
+        <span id="price-status" class="status-pill">总价格: ¥ 0.0</span>
+      </section>
+
+      <section id="bracelet-stage" class="bracelet-stage" aria-label="手链预览">
+        <svg class="bracelet-track" viewBox="0 0 1000 600" aria-hidden="true" preserveAspectRatio="none">
+          <ellipse cx="500" cy="300" rx="270" ry="168" />
+        </svg>
+        <p id="empty-state" class="empty-state">暂未选择<br /><span>请先选择珠子</span></p>
+        <div id="selected-items" class="selected-items" aria-label="已选珠子，点击可删除"></div>
+      </section>
+
+      <section class="stage-actions" aria-label="手链编辑操作">
+        <button id="clear-button" class="outline-button" type="button" disabled>✦ 清空</button>
+        <span class="selection-hint">选择下方珠子开始 DIY</span>
+      </section>
+
+      <section class="picker" aria-label="选择珠子">
+        <div class="picker-toolbar">
+          <span class="picker-handle" aria-hidden="true">◌</span>
+          <label class="search-field" for="search-input">
+            <span aria-hidden="true">⌕</span>
+            <input id="search-input" type="search" autocomplete="off" placeholder="搜索珠子" />
+          </label>
+        </div>
+        <div class="picker-content">
+          <nav id="category-list" class="category-list" aria-label="珠子分类"></nav>
+          <div class="catalog-panel">
+            <div id="product-grid" class="product-grid" aria-live="polite"></div>
+            <p id="no-results" class="no-results" hidden>没有找到匹配的珠子</p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

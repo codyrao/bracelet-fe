@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DIY 手链 H5 系统测试报告</title>
+    <style>
+      body { max-width: 1080px; margin: 32px auto; padding: 0 20px; color: #1f2937; font: 15px/1.65 system-ui, sans-serif; }
+      h1, h2 { color: #172554; } table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; }
+      th, td { padding: 10px; border: 1px solid #dbe3ee; text-align: left; vertical-align: top; } th { background: #eff6ff; }
+      .pass { color: #166534; font-weight: 700; } .skip { color: #92400e; font-weight: 700; } .blocked { color: #9f1239; font-weight: 700; }
+      code { padding: 2px 4px; background: #f3f4f6; border-radius: 3px; }
+    </style>
+  </head>
+  <body>
+    <h1>DIY 手链 H5 系统测试报告</h1>
+    <p>执行日期：2026-06-24；分支：<code>codex/diy-bracelet-h5</code>；环境：本机 <code>127.0.0.1</code> 临时静态服务与 Chromium 浏览器。无数据库、缓存、外部接口、账户或生产配置被修改。</p>
+
+    <h2>结论</h2>
+    <p class="pass">通过：已确认范围内的 7/7 个用例均达到终态，已执行类别的用例覆盖率均为 100%。</p>
+    <p>审查结论无未解决的 critical/important 工程问题、高危安全问题或未接受的中风险安全风险。测试在主代理串行执行；未启动测试子代理，原因是当前工作区协作策略禁止创建子代理。</p>
+
+    <h2>逐用例结果</h2>
+    <table><thead><tr><th>ID</th><th>类别</th><th>结果</th><th>实际结果与证据</th></tr></thead><tbody>
+      <tr><td>TC-DBH-001</td><td>冒烟</td><td class="pass">PASS</td><td>390px 打开页面，显示空手链、0/16、0 元、商品抽屉及可用分类。</td></tr>
+      <tr><td>TC-DBH-002</td><td>冒烟</td><td class="pass">PASS</td><td>点击 6mm 白水晶后，数量变为 1/16、总价变为 ¥3.0、手链出现可删除珠子、清空可用；浏览器控制台 0 错误/0 警告。</td></tr>
+      <tr><td>TC-DBH-003</td><td>边界</td><td class="pass">PASS</td><td>连续添加至 16 颗时显示“珠子数量已满足（16/16）”、总价 ¥48.0；删除一颗后显示“珠子数量不足（15/16）”。</td></tr>
+      <tr><td>TC-DBH-004</td><td>边界</td><td class="pass">PASS</td><td>选择奶白晶并搜索“奶白”仅显示两件匹配商品；搜索“不存在”显示无结果提示。</td></tr>
+      <tr><td>TC-DBH-005</td><td>正向</td><td class="pass">PASS</td><td>删除一颗仅改变对应数量；清空后恢复空态、总价 ¥0.0 且清空按钮禁用。</td></tr>
+      <tr><td>TC-DBH-006</td><td>异常</td><td class="pass">PASS</td><td><code>node --test tests/app.test.mjs</code>：8/8 通过；不完整商品数据被安全忽略，失效删除保留原状态。</td></tr>
+      <tr><td>TC-DBH-007</td><td>边界</td><td class="pass">PASS</td><td>375px、430px 下 <code>scrollWidth &lt;= innerWidth</code> 均为 true；关键控件可见。</td></tr>
+    </tbody></table>
+
+    <h2>类别覆盖</h2>
+    <table><thead><tr><th>类别</th><th>状态</th><th>用例覆盖</th><th>备注</th></tr></thead><tbody>
+      <tr><td>冒烟</td><td class="pass">PASS</td><td>2/2（100%）</td><td>本地页面可运行与核心选珠流程。</td></tr>
+      <tr><td>边界</td><td class="pass">PASS</td><td>3/3（100%）</td><td>数量阈值、筛选空态、响应式宽度。</td></tr>
+      <tr><td>异常</td><td class="pass">PASS</td><td>1/1（100%）</td><td>本地异常数据和失效操作。</td></tr>
+      <tr><td>性能</td><td class="skip">SKIP（已确认）</td><td>不适用</td><td>无性能指标、热路径或服务端负载面。</td></tr>
+      <tr><td>压力</td><td class="skip">SKIP（已确认）</td><td>不适用</td><td>无服务、共享状态或获批的 QPS/持续时间。</td></tr>
+      <tr><td>容灾</td><td class="skip">SKIP（已确认）</td><td>不适用</td><td>无外部依赖、持久化或故障注入面。</td></tr>
+    </tbody></table>
+
+    <h2>验证命令与限制</h2>
+    <ul>
+      <li><code>node --test tests/app.test.mjs</code>：8 个单元测试全部通过。</li>
+      <li><code>node --check app.js</code> 与 <code>git diff --check</code>：通过。</li>
+      <li>浏览器通过本机临时静态服务执行真实点击、筛选、删除、清空和视口检查；执行后已停止服务并删除浏览器临时产物。</li>
+      <li class="blocked">代码覆盖率：BLOCKED。此零依赖静态项目未配置覆盖率采集器，无法给出 98% 数值；以 8 个纯逻辑单测和真实浏览器流程作为替代证据。该限制已在经确认的测试计划中披露。</li>
+    </ul>
+  </body>
+</html>

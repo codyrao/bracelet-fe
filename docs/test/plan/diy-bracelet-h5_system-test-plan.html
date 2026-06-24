@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DIY 手链 H5 系统测试计划</title>
+    <style>
+      body { max-width: 1080px; margin: 32px auto; padding: 0 20px; color: #1f2937; font: 15px/1.6 system-ui, sans-serif; }
+      h1, h2 { color: #172554; } table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; }
+      th, td { padding: 10px; border: 1px solid #dbe3ee; text-align: left; vertical-align: top; }
+      th { background: #eff6ff; } .execute { color: #166534; font-weight: 700; } .skip { color: #92400e; font-weight: 700; }
+      code { padding: 2px 4px; background: #f3f4f6; border-radius: 3px; }
+    </style>
+  </head>
+  <body>
+    <h1>DIY 手链 H5 系统测试计划</h1>
+    <p>分支：<code>codex/diy-bracelet-h5</code>；主分支基线：空仓库；规格：[docs/specs/2026-06-24-diy-bracelet-h5.md]；实现计划：[docs/plans/2026-06-24-diy-bracelet-h5.md]。</p>
+    <p>审查结论：无未解决的 critical/important 工程问题、critical/high 安全问题或未接受的中风险安全问题。执行环境：本机临时静态服务 + 现代浏览器；无后端、数据库、缓存、账户或外部依赖。</p>
+
+    <h2>类别决策</h2>
+    <table><thead><tr><th>类别</th><th>决定</th><th>原因</th><th>权限/限制</th></tr></thead><tbody>
+      <tr><td>冒烟</td><td class="execute">执行</td><td>验证页面可打开及核心选珠流程。</td><td>仅本地只读页面交互。</td></tr>
+      <tr><td>边界</td><td class="execute">执行</td><td>覆盖 16 颗阈值、空筛选、375px/430px 视口。</td><td>仅本地只读页面交互。</td></tr>
+      <tr><td>异常</td><td class="execute">执行</td><td>覆盖本地不完整商品数据的安全忽略。</td><td>仅运行本地单元测试。</td></tr>
+      <tr><td>性能</td><td class="skip">跳过</td><td>演示级本地数据、无热路径或性能指标；浏览器冒烟已验证页面可用。</td><td>无 QPS、无压测。</td></tr>
+      <tr><td>压力</td><td class="skip">跳过</td><td>无服务、接口、共享状态或用户批准的 QPS/持续时间。</td><td>禁止高并发执行。</td></tr>
+      <tr><td>容灾</td><td class="skip">跳过</td><td>无网络、数据库、缓存、队列或可注入的外部依赖。</td><td>无故障注入。</td></tr>
+    </tbody></table>
+
+    <h2>子任务与串行顺序</h2>
+    <table><thead><tr><th>任务</th><th>类别</th><th>执行方式</th><th>断言</th><th>清理</th><th>并行</th><th>状态</th></tr></thead><tbody>
+      <tr><td>ST-01</td><td>冒烟</td><td>390px 浏览器打开页面、添加珠子。</td><td>空态、数量、总价、预览、按钮状态。</td><td>清空选择并关闭临时服务。</td><td>串行</td><td>待确认</td></tr>
+      <tr><td>ST-02</td><td>边界</td><td>逐颗添加到第 16 颗；执行分类/搜索与响应式检查。</td><td>阈值文案、无结果、无横向滚动。</td><td>清空选择。</td><td>串行</td><td>待确认</td></tr>
+      <tr><td>ST-03</td><td>异常</td><td>执行 <code>node --test tests/app.test.mjs</code>。</td><td>不完整本地数据被忽略；失效删除不改变手链。</td><td>无状态变更。</td><td>串行</td><td>待确认</td></tr>
+    </tbody></table>
+
+    <h2>覆盖与报告</h2>
+    <ul>
+      <li>执行类别以 7 个已设计用例为分母，目标为 100% 终态覆盖；跳过类别仅在用户接受本计划的残余风险后记为已接受跳过。</li>
+      <li>无项目级代码覆盖率工具；以 8 个 Node 原生单元测试覆盖核心状态逻辑，并以真实浏览器覆盖可见交互。98% 代码覆盖率指标不适用于无覆盖采集器的静态原型，须在报告中明确标记。</li>
+      <li>建议测试子代理模型：<code>gpt-5.3-codex-spark / xhigh</code>；当前工作区协作策略禁止启动子代理，若执行则由主代理串行完成并记录该回退。</li>
+    </ul>
+  </body>
+</html>
