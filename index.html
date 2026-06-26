@@ -20,22 +20,24 @@
       </header>
 
       <section class="status-row" aria-label="手链状态">
-        <span class="notice-pill">? 使用须知</span>
+        <span class="notice-pill">✦ 使用须知</span>
         <span id="count-status" class="status-pill">珠子数量不足（0/16）</span>
         <span id="price-status" class="status-pill">总价格: ¥ 0.0</span>
       </section>
 
       <section id="bracelet-stage" class="bracelet-stage" aria-label="手链预览">
-        <svg class="bracelet-track" viewBox="0 0 1000 600" aria-hidden="true" preserveAspectRatio="none">
-          <ellipse cx="500" cy="300" rx="270" ry="168" />
+        <svg class="bracelet-track" viewBox="0 0 1000 1000" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+          <circle cx="500" cy="500" r="320" />
         </svg>
         <p id="empty-state" class="empty-state">暂未选择<br /><span>请先选择珠子</span></p>
-        <div id="selected-items" class="selected-items" aria-label="已选珠子，点击可删除"></div>
+        <div id="selected-items" class="selected-items" aria-label="已选珠子，轻点滚动，长按删除"></div>
+        <p id="editor-feedback" class="editor-feedback" role="status" aria-live="polite"></p>
       </section>
 
       <section class="stage-actions" aria-label="手链编辑操作">
         <button id="clear-button" class="outline-button" type="button" disabled>✦ 清空</button>
-        <span class="selection-hint">选择下方珠子开始 DIY</span>
+        <span class="selection-hint">拖到手链添加 · 拖到珠子替换</span>
+        <button id="inspect-button" class="outline-button inspect-button" type="button">3D 展示</button>
       </section>
 
       <section class="picker" aria-label="选择珠子">
@@ -55,6 +57,18 @@
         </div>
       </section>
     </main>
+    <dialog id="bead-inspector" class="bead-inspector" aria-labelledby="inspector-name">
+      <form method="dialog" class="inspector-card">
+        <button class="inspector-close" type="submit" aria-label="关闭 3D 展示">×</button>
+        <p class="inspector-eyebrow">手链 3D 展示</p>
+        <div class="inspector-stage" aria-label="可旋转的整条手链 3D 展示">
+          <canvas id="inspector-canvas" class="inspector-canvas" width="640" height="480"></canvas>
+        </div>
+        <h2 id="inspector-name">整条手链</h2>
+        <p id="inspector-detail" class="inspector-detail"></p>
+        <p class="inspector-tip">地球仪式斜向环绕视角，拖动商品到这里可预览加入后的整圈效果</p>
+      </form>
+    </dialog>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
