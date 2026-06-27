@@ -13,6 +13,7 @@ import {
   createClearedBraceletState,
   calculateBeadPositions,
   calculateBracelet3DScene,
+  calculateBraceletTrackFrame,
   calculateSummary,
   filterProducts,
   getBraceletPreviewItems,
@@ -21,6 +22,15 @@ import {
   rollBraceletItem,
 } from "../app.js";
 
+// 验证页面品牌名已切换为面向小店的命名，不再显示旧的养石头文案。
+test("index.html 使用链小店作为页面品牌名", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+  assert.match(html, /<title>链小店 · DIY 手链<\/title>/);
+  assert.match(html, /<h1>链小店<\/h1>/);
+  assert.doesNotMatch(html, /养个石头/);
+});
+
 // 验证使用须知是可点击按钮，并有对应弹窗承载说明内容。
 test("index.html 提供可打开的使用须知弹窗结构", () => {
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -28,6 +38,16 @@ test("index.html 提供可打开的使用须知弹窗结构", () => {
   assert.match(html, /<button[^>]+id="notice-button"/);
   assert.match(html, /<dialog[^>]+id="usage-dialog"/);
   assert.match(html, /aria-labelledby="usage-title"/);
+});
+
+// 验证移动端关闭双击放大，并保留安全区域适配。
+test("index.html 关闭移动端双击放大并提示 20 颗上限", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+  assert.match(html, /maximum-scale=1/);
+  assert.match(html, /user-scalable=no/);
+  assert.match(html, /珠子数量不足（0\/20）/);
+  assert.match(html, /最多 20 颗/);
 });
 
 // 验证首页和 3D 展示弹窗都能进入确认订单流程。
@@ -58,6 +78,58 @@ test("styles.css 提供手机优先和电脑端双栏自适应布局", () => {
   assert.match(css, /grid-template-areas:\s*"topbar status"\s*"stage picker"\s*"actions picker"/);
   assert.match(css, /\.picker\s*\{[^}]*grid-area: picker;/s);
   assert.match(css, /\.bracelet-stage\s*\{[^}]*grid-area: stage;/s);
+});
+
+// 验证移动端布局不会被 600px 断点强行限制高度，也禁用触控双击缩放。
+test("styles.css 移动端全屏展示且关闭触控缩放手势", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(css, /html\s*\{[^}]*touch-action: manipulation;/s);
+  assert.match(css, /body\s*\{[^}]*overscroll-behavior: none;/s);
+  assert.match(css, /button, input\s*\{[^}]*touch-action: manipulation;/s);
+  assert.match(css, /@media \(min-width: 600px\) and \(max-width: 899px\)/);
+});
+
+// 验证每个弹窗都具备进入和退出动效，关闭时不直接瞬间消失。
+test("styles.css 为每个弹窗提供高性能进入和退出过渡", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const js = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+
+  assert.match(css, /\.bead-inspector\[open\], \.order-dialog\[open\], \.usage-dialog\[open\]/);
+  assert.match(css, /\.bead-inspector\.is-closing, \.order-dialog\.is-closing, \.usage-dialog\.is-closing/);
+  assert.match(css, /\.bead-inspector\[open\] \.inspector-card, \.order-dialog\[open\] \.order-card, \.usage-dialog\[open\] \.usage-card/);
+  assert.match(css, /@keyframes modal-card-enter/);
+  assert.match(css, /@keyframes modal-card-exit/);
+  assert.match(css, /@keyframes modal-enter/);
+  assert.match(css, /@keyframes modal-exit/);
+  assert.match(css, /will-change: transform, opacity/);
+  assert.match(js, /function closeModalDialog/);
+  assert.match(js, /classList\.add\("is-closing"\)/);
+  assert.match(html, /class="inspector-close" type="button"/);
+  assert.match(html, /class="order-close" type="button"/);
+  assert.match(html, /class="usage-close" type="button"/);
+});
+
+// 验证点击和拖拽添加珠子都走同一套飞入绳圈动效，保证添加反馈一致。
+test("app.js 点击和拖拽添加珠子都会播放放到绳子上的动效", () => {
+  const js = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+
+  assert.match(js, /playBeadPlacementAnimation\(product, sourceRect, elements\.selectedItems\.querySelector/);
+  assert.match(js, /playBeadPlacementAnimation\(\s*dragSession\.product,\s*dragSession\.sourceRect,\s*elements\.selectedItems\.querySelector/s);
+});
+
+// 验证首页绳圈使用多层麻绳纹理，而不是光滑的单根 SVG 线。
+test("index.html 和 styles.css 使用有纹理的深棕麻绳轨道", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(html, /id="rope-fiber"/);
+  assert.match(html, /class="rope-circle rope-core"/);
+  assert.match(html, /class="rope-circle rope-fiber"/);
+  assert.match(css, /stroke:\s*url\(#rope-gradient\)/);
+  assert.match(css, /stroke:\s*url\(#rope-fiber\)/);
+  assert.match(css, /stroke-dasharray/);
 });
 
 // 验证商品库同时支持分类和关键词筛选。
@@ -191,18 +263,18 @@ test("addBraceletItem 在达到上限时返回错误且保持状态", () => {
   assert.match(result.error.message, /不能再加/);
 });
 
-// 验证 DIY 手链最多只能加入 16 颗珠子。
-test("addBraceletItem 默认最多添加 16 颗珠子", () => {
+// 验证 DIY 手链最多只能加入 20 颗珠子。
+test("addBraceletItem 默认最多添加 20 颗珠子", () => {
   const product = { id: "clear-8", category: "clear", name: "净体白水晶", diameterMm: 8, priceCents: 500 };
-  const fullState = Array.from({ length: 16 }).reduce(
+  const fullState = Array.from({ length: 20 }).reduce(
     (currentState) => addBraceletItem(currentState, product).state,
     createInitialState(),
   );
   const result = addBraceletItem(fullState, product);
 
-  assert.equal(fullState.items.length, 16);
+  assert.equal(fullState.items.length, 20);
   assert.equal(result.state, fullState);
-  assert.match(result.error.message, /16颗/);
+  assert.match(result.error.message, /20颗/);
 });
 
 // 验证用户可通过已选珠子按钮删除指定的珠子。
@@ -326,7 +398,40 @@ test("calculateBracelet3DScene 生成不透明实体珠且无底部阴影", () =
   assert.ok(scene.beads.every((bead) => bead.materialOpacity === 1));
   assert.ok(scene.beads.every((bead) => bead.shadowOpacity === 0));
   assert.ok(scene.beads.every((bead) => bead.internalLineOpacity === 0));
-  assert.equal(scene.cordSegments.length, 0);
+  assert.equal(scene.cordSegments.length, items.length);
+});
+
+// 验证 3D 场景会把真实商品图片与色调交给 canvas，避免只渲染统一的卡通渐变珠。
+test("calculateBracelet3DScene 为珠子提供真实图片材质信息", () => {
+  const items = [
+    { id: "bead-1", productId: "rose-8", name: "粉水晶", diameterMm: 8, priceCents: 600 },
+    { id: "bead-2", productId: "black-8", name: "黑曜石", diameterMm: 8, priceCents: 500 },
+  ];
+  const scene = calculateBracelet3DScene(items, 320, 240, 0.2);
+
+  assert.equal(scene.error, null);
+  assert.ok(scene.beads.every((bead) => bead.textureImageUrl?.startsWith("https://commons.wikimedia.org/")));
+  assert.deepEqual(
+    new Set(scene.beads.map((bead) => bead.tone)),
+    new Set(["rose", "black"]),
+  );
+});
+
+// 验证 3D 预览图片不启用匿名 CORS，否则 file:// 演示页会被远程图片响应头拦截而退回假色珠。
+test("app.js 3D 真实珠子图片加载不设置匿名 CORS", () => {
+  const js = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+
+  assert.doesNotMatch(js, /crossOrigin\s*=\s*["']anonymous["']/);
+});
+
+// 验证真实珠子图片异步加载完成后会补绘一次，兼容系统减少动态效果时只渲染首帧的场景。
+test("app.js 3D 图片加载完成后会触发轻量补绘", () => {
+  const js = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+
+  assert.match(js, /function getProductImage\(imageUrl, onLoad = null\)/);
+  assert.match(js, /addEventListener\("load", onLoad, \{ once: true \}\)/);
+  assert.match(js, /drawPreviewBead\(context, bead, rotation, onImageLoad\)/);
+  assert.match(js, /renderInspectorBracelet\(elements, items, rotation, \{ skipImageLoadRedraw: true \}\)/);
 });
 
 // 验证订单弹窗展示整条手链的数量、总价和珠子明细，空手链直接返回用户提示。
@@ -366,8 +471,8 @@ test("calculateBracelet3DScene 生成无线条的斜向环绕视角", () => {
   assert.ok(Math.max(...beadYValues) - Math.min(...beadYValues) > 90);
 });
 
-// 验证 3D 展示不再生成珠子之间的连接线。
-test("calculateBracelet3DScene 不生成珠子之间的连接线", () => {
+// 验证 3D 展示只生成珠子之间的麻绳段，不生成辅助轴线或轨道线。
+test("calculateBracelet3DScene 生成珠间麻绳且不生成辅助线", () => {
   const items = Array.from({ length: 6 }, (_, index) => ({
     id: `bead-${index + 1}`,
     productId: "clear-8",
@@ -380,12 +485,58 @@ test("calculateBracelet3DScene 不生成珠子之间的连接线", () => {
   assert.equal(scene.error, null);
   assert.equal(scene.axis, null);
   assert.deepEqual(scene.orbitPath, []);
-  assert.deepEqual(scene.cordSegments, []);
+  assert.equal(scene.cordSegments.length, items.length);
+  assert.ok(scene.cordSegments.every((segment) => segment.kind === "hemp-cord"));
+  assert.ok(scene.cordSegments.every((segment) => [segment.x1, segment.y1, segment.x2, segment.y2, segment.lineWidth].every(Number.isFinite)));
+});
+
+// 验证 3D 手链视觉包围盒居中，避免弹窗里整圈珠子偏左或偏右。
+test("calculateBracelet3DScene 居中整条 3D 手链", () => {
+  const items = Array.from({ length: 20 }, (_, index) => ({
+    id: `bead-${index + 1}`,
+    productId: "rose-8",
+    name: "粉水晶",
+    diameterMm: 8,
+    priceCents: 600,
+  }));
+
+  [0, 0.3, 0.8, 1.2].forEach((rotation) => {
+    const width = 672;
+    const height = 505;
+    const scene = calculateBracelet3DScene(items, width, height, rotation);
+    const minX = Math.min(...scene.beads.map((bead) => bead.x - bead.radiusX));
+    const maxX = Math.max(...scene.beads.map((bead) => bead.x + bead.radiusX));
+    const minY = Math.min(...scene.beads.map((bead) => bead.y - bead.radiusY));
+    const maxY = Math.max(...scene.beads.map((bead) => bead.y + bead.radiusY));
+
+    assert.ok(Math.abs((minX + maxX) / 2 - width / 2) <= 1.2);
+    assert.ok(Math.abs((minY + maxY) / 2 - height / 2) <= 1.2);
+  });
+});
+
+// 验证 3D 环绕保持产品展示视角，不会转成几乎一条竖线的纯侧视。
+test("calculateBracelet3DScene 保持足够正的环绕视角", () => {
+  const items = Array.from({ length: 20 }, (_, index) => ({
+    id: `bead-${index + 1}`,
+    productId: "rose-8",
+    name: "粉水晶",
+    diameterMm: 8,
+    priceCents: 600,
+  }));
+
+  [0, 0.8, 1.6, 2.4].forEach((rotation) => {
+    const width = 672;
+    const scene = calculateBracelet3DScene(items, width, 505, rotation);
+    const minX = Math.min(...scene.beads.map((bead) => bead.x - bead.radiusX));
+    const maxX = Math.max(...scene.beads.map((bead) => bead.x + bead.radiusX));
+
+    assert.ok(maxX - minX >= width * 0.22);
+  });
 });
 
 // 验证 3D 后半圈珠子不会因为透视缩小过度而显得间隔过大。
 test("calculateBracelet3DScene 控制后半圈珠子视觉间隔", () => {
-  const items = Array.from({ length: 16 }, (_, index) => ({
+  const items = Array.from({ length: 20 }, (_, index) => ({
     id: `bead-${index + 1}`,
     productId: "clear-8",
     name: "净体白水晶",
@@ -410,6 +561,100 @@ test("calculateBracelet3DScene 控制后半圈珠子视觉间隔", () => {
   });
 });
 
+// 验证 PC 尺寸下 20 颗珠子的 3D 环绕不会因为环半径过大显得前后都松散。
+test("calculateBracelet3DScene 在 PC 展示压紧 20 颗珠子的视觉间隔", () => {
+  const items = Array.from({ length: 20 }, (_, index) => ({
+    id: `bead-${index + 1}`,
+    productId: "clear-8",
+    name: "净体白水晶",
+    diameterMm: 8,
+    priceCents: 500,
+  }));
+  const scene = calculateBracelet3DScene(items, 690, 520, 0.3);
+  const orderedBeads = [...scene.beads].sort((left, right) => Number(left.id.split("-")[1]) - Number(right.id.split("-")[1]));
+  const gapRatios = orderedBeads.map((bead, index) => {
+    const nextBead = orderedBeads[(index + 1) % orderedBeads.length];
+    const averageRadius = (bead.radius + nextBead.radius) / 2;
+
+    return Math.hypot(nextBead.x - bead.x, nextBead.y - bead.y) / averageRadius;
+  });
+
+  assert.ok(Math.max(...gapRatios) <= 3.15);
+});
+
+// 验证 PC 尺寸下 20 颗珠子的首页顶视图不会松散到像散开的圆。
+test("calculateBeadPositions 在 PC 首页压紧 20 颗珠子的视觉间隔", () => {
+  const items = Array.from({ length: 20 }, (_, index) => ({
+    id: `bead-${index + 1}`,
+    diameterMm: 8,
+    priceCents: 500,
+  }));
+  const { positions } = calculateBeadPositions(items, 690, 642);
+  const gapRatios = positions.map((position, index) => {
+    const nextPosition = positions[(index + 1) % positions.length];
+    const averageSize = (position.size + nextPosition.size) / 2;
+
+    return Math.hypot(nextPosition.x - position.x, nextPosition.y - position.y) / averageSize;
+  });
+
+  assert.ok(Math.max(...gapRatios) <= 1.72);
+});
+
+// 验证 PC 满珠时珠子自身足够大，视觉上能填满整条绳子。
+test("calculateBeadPositions 在 PC 满 20 颗时放大珠子填满绳圈", () => {
+  const items = Array.from({ length: 20 }, (_, index) => ({
+    id: `bead-${index + 1}`,
+    diameterMm: 8,
+    priceCents: 500,
+  }));
+  const { positions } = calculateBeadPositions(items, 690, 642);
+  const track = calculateBraceletTrackFrame(items, 690, 642);
+  const coverageRatio = positions.reduce((total, position) => total + position.size, 0) / (Math.PI * 2 * track.radiusPx);
+  const gapRatios = positions.map((position, index) => {
+    const nextPosition = positions[(index + 1) % positions.length];
+    const averageSize = (position.size + nextPosition.size) / 2;
+
+    return Math.hypot(nextPosition.x - position.x, nextPosition.y - position.y) / averageSize;
+  });
+
+  assert.ok(Math.min(...positions.map((position) => position.size)) >= 44);
+  assert.ok(coverageRatio >= 0.86);
+  assert.ok(Math.max(...gapRatios) <= 1.18);
+});
+
+// 验证 PC 满珠时即使选择 6mm 小珠，也不会显得稀疏断裂。
+test("calculateBeadPositions 在 PC 满 20 颗小珠时保留最低视觉填充", () => {
+  const items = Array.from({ length: 20 }, (_, index) => ({
+    id: `bead-${index + 1}`,
+    diameterMm: 6,
+    priceCents: 300,
+  }));
+  const { positions } = calculateBeadPositions(items, 690, 642);
+  const track = calculateBraceletTrackFrame(items, 690, 642);
+  const coverageRatio = positions.reduce((total, position) => total + position.size, 0) / (Math.PI * 2 * track.radiusPx);
+
+  assert.ok(Math.min(...positions.map((position) => position.size)) >= 46);
+  assert.ok(coverageRatio >= 0.84);
+});
+
+// 验证满珠时珠子坐标和 SVG 绳圈使用同一个动态半径，避免珠子落在线内侧。
+test("calculateBraceletTrackFrame 与 calculateBeadPositions 使用同一条绳圈半径", () => {
+  const items = Array.from({ length: 20 }, (_, index) => ({
+    id: `bead-${index + 1}`,
+    diameterMm: 8,
+    priceCents: 500,
+  }));
+  const width = 690;
+  const height = 642;
+  const { positions } = calculateBeadPositions(items, width, height);
+  const track = calculateBraceletTrackFrame(items, width, height);
+  const distances = positions.map((position) => Math.hypot(position.x - width / 2, position.y - height / 2));
+
+  assert.equal(track.error, null);
+  assert.ok(track.viewBoxRadius < 320);
+  assert.ok(distances.every((distance) => Math.abs(distance - track.radiusPx) < 0.001));
+});
+
 // 验证 3D 手链包含真实珠孔、前后麻绳遮挡和天然尺寸差异。
 test("calculateBracelet3DScene 生成更真实的珠孔和麻绳层次", () => {
   const items = Array.from({ length: 12 }, (_, index) => ({
@@ -426,7 +671,7 @@ test("calculateBracelet3DScene 生成更真实的珠孔和麻绳层次", () => {
   assert.ok(scene.beads.every((bead) => bead.hole && bead.hole.radius > 0 && Number.isFinite(bead.hole.angle)));
   assert.ok(scene.beads.every((bead) => bead.radiusX > 0 && bead.radiusY > 0 && bead.textureSeed >= 0));
   assert.ok(new Set(radiusValues).size > 4);
-  assert.deepEqual(scene.cordSegments, []);
+  assert.equal(scene.cordSegments.length, items.length);
 });
 
 // 验证已选珠子会生成实时价格、数量提示和环形预览坐标。

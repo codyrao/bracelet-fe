@@ -7,14 +7,20 @@
 
 * { box-sizing: border-box; }
 
+html {
+  width: 100%;
+  touch-action: manipulation;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100dvh;
   background: #eeeae6;
+  overscroll-behavior: none;
 }
 
-button, input { font: inherit; }
+button, input { font: inherit; touch-action: manipulation; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-offset: 3px; }
 
@@ -162,13 +168,31 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   overflow: visible;
 }
 
-.bracelet-track circle {
+.bracelet-track .rope-circle {
   fill: transparent;
-  stroke: rgb(65 39 24 / 58%);
   stroke-linecap: round;
-  stroke-width: 5.2;
-  filter: drop-shadow(0 1px 0 rgb(156 107 70 / 36%)) drop-shadow(0 7px 8px rgb(59 35 23 / 16%));
   animation: track-reveal 680ms cubic-bezier(.2, .8, .2, 1) both;
+  transform-origin: center;
+}
+
+.bracelet-track .rope-shadow {
+  stroke: rgb(42 27 19 / 20%);
+  stroke-width: 14;
+  filter: blur(2.4px) drop-shadow(0 7px 9px rgb(59 35 23 / 18%));
+}
+
+.bracelet-track .rope-core {
+  stroke: url(#rope-gradient);
+  stroke-width: 7.2;
+  filter: drop-shadow(0 1px 0 rgb(198 150 108 / 32%)) drop-shadow(0 6px 8px rgb(59 35 23 / 16%));
+}
+
+.bracelet-track .rope-fiber {
+  stroke: url(#rope-fiber);
+  stroke-width: 8.4;
+  stroke-dasharray: 9 5;
+  opacity: .72;
+  filter: drop-shadow(0 .4px 0 rgb(255 231 204 / 22%));
 }
 
 .empty-state {
@@ -436,7 +460,25 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 }
 
 .bead-inspector::backdrop { background: rgb(48 38 32 / 43%); backdrop-filter: blur(6px); }
-.bead-inspector[open] { animation: inspector-enter 260ms cubic-bezier(.2, .8, .2, 1) both; }
+.bead-inspector[open], .order-dialog[open], .usage-dialog[open] {
+  animation: modal-enter 240ms cubic-bezier(.2, .8, .2, 1) both;
+  will-change: transform, opacity;
+}
+.bead-inspector.is-closing, .order-dialog.is-closing, .usage-dialog.is-closing {
+  animation: modal-exit 180ms cubic-bezier(.4, 0, 1, 1) both;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.bead-inspector[open] .inspector-card, .order-dialog[open] .order-card, .usage-dialog[open] .usage-card {
+  animation: modal-card-enter 260ms cubic-bezier(.16, 1, .3, 1) both;
+  will-change: transform, opacity;
+}
+
+.bead-inspector.is-closing .inspector-card, .order-dialog.is-closing .order-card, .usage-dialog.is-closing .usage-card {
+  animation: modal-card-exit 170ms cubic-bezier(.4, 0, 1, 1) both;
+  will-change: transform, opacity;
+}
 
 .inspector-card {
   position: relative;
@@ -515,7 +557,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 }
 
 .order-dialog::backdrop { background: rgb(48 38 32 / 40%); backdrop-filter: blur(5px); }
-.order-dialog[open] { animation: inspector-enter 240ms cubic-bezier(.2, .8, .2, 1) both; }
 
 .order-card {
   position: relative;
@@ -585,7 +626,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 }
 
 .usage-dialog::backdrop { background: rgb(48 38 32 / 38%); backdrop-filter: blur(5px); }
-.usage-dialog[open] { animation: inspector-enter 220ms cubic-bezier(.2, .8, .2, 1) both; }
 
 .usage-card {
   position: relative;
@@ -659,9 +699,24 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   to { transform: rotate(420deg); }
 }
 
-@keyframes inspector-enter {
+@keyframes modal-enter {
   from { opacity: 0; transform: translateY(16px) scale(.94); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes modal-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(10px) scale(.96); }
+}
+
+@keyframes modal-card-enter {
+  from { opacity: .72; transform: translateY(14px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes modal-card-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: .72; transform: translateY(8px) scale(.985); }
 }
 
 
@@ -674,9 +729,11 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   .product-card { min-height: 96px; }
 }
 
-@media (min-width: 600px) {
-  body { display: grid; place-items: center; }
-  .app-shell { width: min(100%, 430px); min-height: min(100dvh, 860px); border-radius: 28px; box-shadow: 0 24px 72px rgb(57 45 37 / 20%); }
+@media (min-width: 600px) and (max-width: 899px) {
+  .app-shell {
+    width: 100%;
+    min-height: 100dvh;
+  }
 }
 
 @media (min-width: 900px) {

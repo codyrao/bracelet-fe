@@ -2,16 +2,16 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#ffffff" />
-    <title>养个石头 · DIY 手链</title>
+    <title>链小店 · DIY 手链</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="app-shell">
       <header class="topbar">
         <button class="icon-button" type="button" aria-label="返回" onclick="history.back()">‹</button>
-        <h1>养个石头</h1>
+        <h1>链小店</h1>
         <div class="topbar-actions" aria-label="页面操作">
           <button class="round-action" type="button" aria-label="更多操作">•••</button>
           <button class="round-action" type="button" aria-label="最小化">−</button>
@@ -21,13 +21,27 @@
 
       <section class="status-row" aria-label="手链状态">
         <button id="notice-button" class="notice-pill" type="button">✦ 使用须知</button>
-        <span id="count-status" class="status-pill">珠子数量不足（0/16）</span>
+        <span id="count-status" class="status-pill">珠子数量不足（0/20）</span>
         <span id="price-status" class="status-pill">总价格: ¥ 0.0</span>
       </section>
 
       <section id="bracelet-stage" class="bracelet-stage" aria-label="手链预览">
         <svg class="bracelet-track" viewBox="0 0 1000 1000" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
-          <circle cx="500" cy="500" r="320" />
+          <defs>
+            <linearGradient id="rope-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#4a3123" />
+              <stop offset="34%" stop-color="#8b6a53" />
+              <stop offset="62%" stop-color="#3c291f" />
+              <stop offset="100%" stop-color="#9a765c" />
+            </linearGradient>
+            <pattern id="rope-fiber" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(34)">
+              <path d="M-4 6 L26 6 M-4 14 L26 14" stroke="#c19a78" stroke-width="2.4" stroke-linecap="round" opacity=".56" />
+              <path d="M0 10 L22 10 M0 18 L22 18" stroke="#2f2018" stroke-width="1.4" stroke-linecap="round" opacity=".38" />
+            </pattern>
+          </defs>
+          <circle class="rope-circle rope-shadow" cx="500" cy="500" r="320" />
+          <circle id="bracelet-track-circle" class="rope-circle rope-core" cx="500" cy="500" r="320" />
+          <circle class="rope-circle rope-fiber" cx="500" cy="500" r="320" />
         </svg>
         <p id="empty-state" class="empty-state">暂未选择<br /><span>请先选择珠子</span></p>
         <div id="selected-items" class="selected-items" aria-label="已选珠子，轻点滚动，长按删除"></div>
@@ -60,7 +74,7 @@
     </main>
     <dialog id="bead-inspector" class="bead-inspector" aria-labelledby="inspector-name">
       <form method="dialog" class="inspector-card">
-        <button class="inspector-close" type="submit" aria-label="关闭 3D 展示">×</button>
+        <button class="inspector-close" type="button" aria-label="关闭 3D 展示">×</button>
         <p class="inspector-eyebrow">手链 3D 展示</p>
         <div class="inspector-stage" aria-label="可旋转的整条手链 3D 展示">
           <canvas id="inspector-canvas" class="inspector-canvas" width="640" height="480"></canvas>
@@ -73,24 +87,24 @@
     </dialog>
     <dialog id="order-dialog" class="order-dialog" aria-labelledby="order-title">
       <form method="dialog" class="order-card">
-        <button class="order-close" type="submit" aria-label="关闭订单确认">×</button>
+        <button class="order-close" type="button" aria-label="关闭订单确认">×</button>
         <p class="order-eyebrow">ORDER CONFIRM</p>
         <h2 id="order-title">确认订单</h2>
         <div id="order-preview" class="order-preview" aria-label="手链平面预览图"></div>
         <div id="order-summary" class="order-summary" aria-live="polite"></div>
         <menu class="order-actions">
-          <button class="outline-button" type="submit">再看看</button>
-          <button id="order-confirm-button" class="order-primary" type="submit">确认</button>
+          <button class="outline-button order-dismiss" type="button">再看看</button>
+          <button id="order-confirm-button" class="order-primary" type="button">确认</button>
         </menu>
       </form>
     </dialog>
     <dialog id="usage-dialog" class="usage-dialog" aria-labelledby="usage-title">
       <form method="dialog" class="usage-card">
-        <button class="usage-close" type="submit" aria-label="关闭使用须知">×</button>
+        <button class="usage-close" type="button" aria-label="关闭使用须知">×</button>
         <p class="usage-eyebrow">DIY 手链说明</p>
         <h2 id="usage-title">使用须知</h2>
         <ul>
-          <li>点击珠子会把它放到手链绳子上，最多 16 颗。</li>
+          <li>点击珠子会把它放到手链绳子上，最多 20 颗。</li>
           <li>拖动商品到手链可添加，拖到已有珠子可替换。</li>
           <li>轻点已选珠子会滚动展示，长按可删除。</li>
           <li>点击「3D 展示」查看整条手链的环绕预览。</li>
