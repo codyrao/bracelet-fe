@@ -80,6 +80,19 @@ test("styles.css 提供手机优先和电脑端双栏自适应布局", () => {
   assert.match(css, /\.bracelet-stage\s*\{[^}]*grid-area: stage;/s);
 });
 
+// 验证 PC 端使用整屏工作台，而不是被固定最大宽度限制成左侧小卡片。
+test("styles.css 电脑端工作台铺满可用屏幕", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+  const desktopCss = css.match(/@media \(min-width: 900px\) \{[\s\S]*$/)?.[0] ?? "";
+
+  assert.match(desktopCss, /body\s*\{[^}]*padding: 12px;/s);
+  assert.match(desktopCss, /\.app-shell\s*\{[^}]*width: calc\(100vw - 24px\);/s);
+  assert.match(desktopCss, /\.app-shell\s*\{[^}]*height: calc\(100dvh - 24px\);/s);
+  assert.match(desktopCss, /grid-template-columns: minmax\(720px, 1fr\) minmax\(390px, 500px\);/);
+  assert.doesNotMatch(desktopCss, /width: min\(1180px/);
+  assert.doesNotMatch(desktopCss, /height: min\(860px/);
+});
+
 // 验证移动端布局不会被 600px 断点强行限制高度，也禁用触控双击缩放。
 test("styles.css 移动端全屏展示且关闭触控缩放手势", () => {
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
@@ -130,6 +143,17 @@ test("index.html 和 styles.css 使用有纹理的深棕麻绳轨道", () => {
   assert.match(css, /stroke:\s*url\(#rope-gradient\)/);
   assert.match(css, /stroke:\s*url\(#rope-fiber\)/);
   assert.match(css, /stroke-dasharray/);
+});
+
+// 验证珠子和麻绳具备更接近实物的立体材质层，避免 PC 大屏下显得扁平。
+test("styles.css 为珠子和麻绳提供实物质感层", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.selected-bead\s*\{[^}]*filter: drop-shadow\(0 16px 16px/s);
+  assert.match(css, /\.selected-bead-core\s*\{[^}]*filter: saturate\(1\.08\) contrast\(1\.06\);/s);
+  assert.match(css, /\.selected-bead-core::after, \.product-bead::after\s*\{[^}]*box-shadow: inset 0 0 0 1px/s);
+  assert.match(css, /\.selected-bead-core.has-photo::after, \.product-bead.has-photo::after\s*\{[^}]*mix-blend-mode: soft-light;/s);
+  assert.match(css, /\.bracelet-track \.rope-fiber\s*\{[^}]*stroke-dasharray: 6 4 2 5;/s);
 });
 
 // 验证商品库同时支持分类和关键词筛选。
