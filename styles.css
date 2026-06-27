@@ -237,43 +237,43 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   height: var(--selected-size);
   place-items: center;
   padding: 0;
-  border: 1px solid rgb(255 255 255 / 72%);
+  border: 0;
   border-radius: 50%;
-  background: linear-gradient(145deg, rgb(255 255 255 / 82%), rgb(211 201 193 / 48%));
-  box-shadow: 0 11px 18px rgb(67 52 43 / 18%), inset 0 1px 1px rgb(255 255 255 / 88%);
-  filter: drop-shadow(0 16px 16px rgb(64 43 32 / 18%));
+  background: transparent;
+  box-shadow: none;
+  filter: none;
   transform: translate(-50%, -50%);
-  transition: transform 180ms cubic-bezier(.2, .8, .2, 1), box-shadow 180ms ease;
+  transition: filter 180ms ease, transform 180ms cubic-bezier(.2, .8, .2, 1);
   will-change: transform, opacity;
 }
 
-.selected-bead:hover { box-shadow: 0 11px 19px rgb(67 52 43 / 21%), inset 0 1px 1px #fff; transform: translate(-50%, -50%) scale(1.08); }
+.selected-bead:hover { filter: brightness(1.03); transform: translate(-50%, -50%) scale(1.08); }
 .selected-bead:active { transform: translate(-50%, -50%) scale(.92); }
 .selected-bead.is-entering { animation: bead-enter 560ms cubic-bezier(.16, 1.08, .24, 1) both; }
 .selected-bead.is-rolling { animation: bead-roll 720ms cubic-bezier(.22, .84, .27, 1) both; }
 .selected-bead.is-rolling .selected-bead-core { animation: core-roll 720ms linear both; }
-.selected-bead.is-selected { box-shadow: 0 0 0 4px rgb(189 113 82 / 18%), 0 12px 22px rgb(83 54 42 / 18%), inset 0 1px 1px #fff; }
-.selected-bead.is-drop-target { box-shadow: 0 0 0 5px rgb(190 113 82 / 25%), 0 12px 22px rgb(83 54 42 / 25%); transform: translate(-50%, -50%) scale(1.16); }
+.selected-bead.is-selected { filter: brightness(1.04); }
+.selected-bead.is-drop-target { filter: brightness(1.07); transform: translate(-50%, -50%) scale(1.16); }
 .selected-bead.is-clearing { animation: bead-clear 360ms cubic-bezier(.36, 0, .66, -.56) var(--clear-delay, 0ms) both; pointer-events: none; }
 
 .selected-bead-core, .product-bead {
   position: relative;
   display: block;
   overflow: hidden;
+  isolation: isolate;
   border-radius: 50%;
   background-color: #efeae5;
   background-position: center;
+  background-repeat: no-repeat;
   background-size: cover;
+  clip-path: circle(50% at 50% 50%);
 }
 
 .selected-bead-core {
   width: 100%;
   height: 100%;
-  box-shadow:
-    inset 5px 5px 8px rgb(255 255 255 / 68%),
-    inset -8px -10px 15px rgb(48 38 32 / 26%),
-    inset 0 0 0 1px rgb(255 255 255 / 38%);
-  filter: saturate(1.08) contrast(1.06);
+  box-shadow: none;
+  filter: saturate(1.04) contrast(1.03);
 }
 
 .selected-bead-core::before, .product-bead::before {
@@ -306,6 +306,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
     radial-gradient(circle at 70% 78%, rgb(20 13 10 / 28%), transparent 36%),
     linear-gradient(128deg, transparent 17%, rgb(255 255 255 / 16%) 24%, transparent 31%, transparent 61%, rgb(255 255 255 / 10%) 68%, transparent 74%);
   mix-blend-mode: soft-light;
+}
+
+.selected-bead-core.has-photo::before,
+.selected-bead-core.has-photo::after,
+.product-bead.has-photo::before,
+.product-bead.has-photo::after {
+  display: none;
 }
 
 .tone-clear { background-image: radial-gradient(circle at 28% 24%, rgb(255 255 255 / 92%) 0 8%, transparent 18%), radial-gradient(circle at 66% 72%, rgb(102 99 108 / 24%), transparent 32%), conic-gradient(from 218deg at 48% 52%, #8e8c94, #f8f8fb 15%, #b9b8c0 32%, #fff 49%, #bebbc4 73%, #f6f6f9 88%, #8e8c94); }
@@ -444,6 +451,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 .product-card.is-limit { border-style: dashed; border-color: rgb(187 112 82 / 38%); }
 
 .product-bead { width: var(--bead-diameter); height: var(--bead-diameter); max-width: 48px; max-height: 48px; box-shadow: 0 6px 10px rgb(66 48 37 / 14%), inset 4px 4px 6px rgb(255 255 255 / 62%), inset -6px -7px 11px rgb(52 39 33 / 20%); }
+.product-bead.has-photo { box-shadow: none; }
 .product-name { overflow: hidden; width: 100%; font-size: 12px; font-weight: 600; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .product-detail { color: #9a8a80; font-size: 10px; }
 .no-results { margin: 34px 0; color: #a18f84; font-size: 13px; text-align: center; }

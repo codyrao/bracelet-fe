@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { inflateSync } from "node:zlib";
 
 import {
   addBraceletItem,
@@ -23,6 +24,129 @@ import {
   removeBraceletItem,
   rollBraceletItem,
 } from "../app.js";
+
+// 解析当前素材库使用的 8-bit RGBA/RGB PNG，供测试直接检查真实图片像素。
+function decodePngPixels(buffer) {
+  const signature = buffer.subarray(0, 8).toString("hex");
+  assert.equal(signature, "89504e470d0a1a0a");
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let colorType = 0;
+  const idatParts = [];
+
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.subarray(offset + 4, offset + 8).toString("ascii");
+    const data = buffer.subarray(offset + 8, offset + 8 + length);
+    offset += length + 12;
+
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      assert.equal(data[8], 8);
+      colorType = data[9];
+      assert.equal(data[12], 0);
+    } else if (type === "IDAT") {
+      idatParts.push(data);
+    } else if (type === "IEND") {
+      break;
+    }
+  }
+
+  const bytesPerPixel = colorType === 6 ? 4 : colorType === 2 ? 3 : 0;
+  assert.ok(bytesPerPixel > 0, `不支持的 PNG 颜色类型：${colorType}`);
+  const raw = inflateSync(Buffer.concat(idatParts));
+  const stride = width * bytesPerPixel;
+  const pixels = new Uint8Array(width * height * 4);
+  let rawOffset = 0;
+  let previousRow = new Uint8Array(stride);
+
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[rawOffset];
+    rawOffset += 1;
+    const row = new Uint8Array(stride);
+    for (let x = 0; x < stride; x += 1) {
+      const left = x >= bytesPerPixel ? row[x - bytesPerPixel] : 0;
+      const up = previousRow[x] ?? 0;
+      const upLeft = x >= bytesPerPixel ? previousRow[x - bytesPerPixel] : 0;
+      const value = raw[rawOffset + x];
+      const paeth = (() => {
+        const prediction = left + up - upLeft;
+        const leftDistance = Math.abs(prediction - left);
+        const upDistance = Math.abs(prediction - up);
+        const upLeftDistance = Math.abs(prediction - upLeft);
+        return leftDistance <= upDistance && leftDistance <= upLeftDistance
+          ? left
+          : upDistance <= upLeftDistance ? up : upLeft;
+      })();
+      row[x] = (value + [0, left, up, Math.floor((left + up) / 2), paeth][filter]) & 255;
+    }
+    rawOffset += stride;
+    for (let x = 0; x < width; x += 1) {
+      const source = x * bytesPerPixel;
+      const target = (y * width + x) * 4;
+      pixels[target] = row[source];
+      pixels[target + 1] = row[source + 1];
+      pixels[target + 2] = row[source + 2];
+      pixels[target + 3] = colorType === 6 ? row[source + 3] : 255;
+    }
+    previousRow = row;
+  }
+
+  return { width, height, pixels };
+}
+
+// 计算珠子中心区域的局部纹理强度，避免把真实素材修成过度平滑的假球。
+function calculateLocalTextureScore({ width, height, pixels }) {
+  const centerX = (width - 1) / 2;
+  const centerY = (height - 1) / 2;
+  const radius = Math.min(width, height) / 2;
+  let textureTotal = 0;
+  let checkedPixels = 0;
+
+  for (let y = 3; y < height - 3; y += 1) {
+    for (let x = 3; x < width - 3; x += 1) {
+      const index = (y * width + x) * 4;
+      if (pixels[index + 3] < 80 || Math.hypot(x - centerX, y - centerY) / radius > 0.78) {
+        continue;
+      }
+      const current = pixels[index] * 0.2126 + pixels[index + 1] * 0.7152 + pixels[index + 2] * 0.0722;
+      let localTotal = 0;
+      let localCount = 0;
+      for (let sampleY = y - 3; sampleY <= y + 3; sampleY += 3) {
+        for (let sampleX = x - 3; sampleX <= x + 3; sampleX += 3) {
+          const sampleIndex = (sampleY * width + sampleX) * 4;
+          localTotal += pixels[sampleIndex] * 0.2126 + pixels[sampleIndex + 1] * 0.7152 + pixels[sampleIndex + 2] * 0.0722;
+          localCount += 1;
+        }
+      }
+      textureTotal += Math.abs(current - localTotal / localCount);
+      checkedPixels += 1;
+    }
+  }
+
+  return textureTotal / Math.max(1, checkedPixels);
+}
+
+// 计算半透明边带占比；过宽会在浅色背景上混出白边或黄边。
+function calculateSoftEdgeScore({ pixels }) {
+  let semiTransparentPixels = 0;
+  let visiblePixels = 0;
+
+  for (let index = 0; index < pixels.length; index += 4) {
+    const alpha = pixels[index + 3];
+    if (alpha === 0) {
+      continue;
+    }
+    if (alpha < 250) {
+      semiTransparentPixels += 1;
+    }
+    visiblePixels += 1;
+  }
+
+  return semiTransparentPixels / Math.max(1, visiblePixels);
+}
 
 // 验证页面品牌名已切换为面向小店的命名，不再显示旧的养石头文案。
 test("index.html 使用链小店作为页面品牌名", () => {
@@ -196,15 +320,38 @@ test("index.html 和 styles.css 使用有纹理的深棕麻绳轨道", () => {
   assert.match(css, /stroke-dasharray/);
 });
 
-// 验证珠子和麻绳具备更接近实物的立体材质层，避免 PC 大屏下显得扁平。
+// 验证珠子保留真实材质，麻绳保留纹理，同时真实图片珠子不再靠阴影描边。
 test("styles.css 为珠子和麻绳提供实物质感层", () => {
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
-  assert.match(css, /\.selected-bead\s*\{[^}]*filter: drop-shadow\(0 16px 16px/s);
-  assert.match(css, /\.selected-bead-core\s*\{[^}]*filter: saturate\(1\.08\) contrast\(1\.06\);/s);
-  assert.match(css, /\.selected-bead-core::after, \.product-bead::after\s*\{[^}]*box-shadow: inset 0 0 0 1px/s);
-  assert.match(css, /\.selected-bead-core.has-photo::after, \.product-bead.has-photo::after\s*\{[^}]*mix-blend-mode: soft-light;/s);
+  assert.match(css, /\.selected-bead\s*\{[^}]*filter: none;/s);
+  assert.match(css, /\.selected-bead-core\s*\{[^}]*filter: saturate\(1\.04\) contrast\(1\.03\);/s);
+  assert.match(css, /\.product-bead\.has-photo\s*\{[^}]*box-shadow: none;/s);
+  assert.match(css, /\.selected-bead-core\.has-photo::before,\s*\.selected-bead-core\.has-photo::after,\s*\.product-bead\.has-photo::before,\s*\.product-bead\.has-photo::after\s*\{[^}]*display: none;/s);
   assert.match(css, /\.bracelet-track \.rope-fiber\s*\{[^}]*stroke-dasharray: 6 4 2 5;/s);
+});
+
+// 验证已添加到手链上的真实珠子不再叠加白边、黄边或选中描边。
+test("styles.css 已添加真实珠子无白黄边框", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.selected-bead\s*\{[^}]*border: 0;/s);
+  assert.match(css, /\.selected-bead\s*\{[^}]*background: transparent;/s);
+  assert.doesNotMatch(css, /\.selected-bead\.is-selected\s*\{[^}]*0 0 0 4px/s);
+  assert.doesNotMatch(css, /\.selected-bead\.is-drop-target\s*\{[^}]*0 0 0 5px/s);
+  assert.doesNotMatch(css, /\.selected-bead-core\s*\{[^}]*inset 0 0 0 1px/s);
+  assert.doesNotMatch(css, /\.selected-bead\s*\{[^}]*drop-shadow/s);
+  assert.doesNotMatch(css, /\.product-bead\.has-photo\s*\{[^}]*inset/s);
+});
+
+// 验证 3D 展示里的真实图片珠子使用原图裁切，不再额外画外描边。
+test("app.js 3D 真实图片珠子不叠加描边", () => {
+  const js = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+
+  assert.match(js, /const hasPhotoTexture = Boolean\(productImage\?\.complete && productImage\.naturalWidth > 0\);/);
+  assert.match(js, /if \(hasPhotoTexture\) \{[\s\S]*drawCoverImage\(context, productImage, bead\.x, bead\.y, maxRadius \* 2\.12\);[\s\S]*context\.restore\(\);\s*return;/);
+  assert.doesNotMatch(js, /context\.strokeStyle = "rgba\(255,255,255,\.45\)";/);
+  assert.doesNotMatch(js, /context\.strokeStyle = "rgba\(56,40,32,\.18\)";/);
 });
 
 // 验证视频模板里的轻盈呼吸感和弹性入环节奏通过 CSS token 固化下来。
@@ -237,29 +384,39 @@ test("styles.css 和 app.js 提供商品卡灰色涟漪装珠动画", () => {
 // 验证商品库同时支持分类和关键词筛选。
 test("filterProducts 按分类和关键词返回有效商品", () => {
   const products = [
-    { id: "clear-8", category: "clear", name: "净体白水晶", diameterMm: 8, priceCents: 500 },
-    { id: "milk-10", category: "milk", name: "奶白晶", diameterMm: 10, priceCents: 800 },
+    { id: "white-crystal-4", category: "quartz", name: "白水晶", diameterMm: 4, priceCents: 300 },
+    { id: "blue-moon-5", category: "moonstone", name: "蓝月光石", diameterMm: 5, priceCents: 500 },
   ];
 
-  assert.deepEqual(filterProducts(products, "clear", "8mm"), [products[0]]);
+  assert.deepEqual(filterProducts(products, "quartz", "4mm"), [products[0]]);
 });
 
 // 验证商品图片来源字段会被保留，方便用真实图片替代卡通珠子。
 test("filterProducts 保留真实珠子图片来源字段", () => {
   const product = {
-    id: "rose-8",
-    category: "rose",
-    name: "粉水晶",
-    diameterMm: 8,
-    priceCents: 600,
-    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Rose_Quartz_Bracelet.jpg?width=320",
-    sourceUrl: "https://commons.wikimedia.org/wiki/File:Rose_Quartz_Bracelet.jpg",
+    id: "rose-quartz-4",
+    category: "quartz",
+    name: "粉晶",
+    diameterMm: 4,
+    priceCents: 300,
+    imageUrl: "./assets/beads/bead-09.png",
+    sourceUrl: "https://detail.1688.com/offer/1058950241524.html",
   };
 
-  const [matchedProduct] = filterProducts([product], "rose", "粉");
+  const [matchedProduct] = filterProducts([product], "quartz", "粉");
 
   assert.equal(matchedProduct.imageUrl, product.imageUrl);
   assert.equal(matchedProduct.sourceUrl, product.sourceUrl);
+});
+
+// 验证页面商品库只保留真实商品图裁切后的本地单珠图，不再混入旧演示珠子。
+test("app.js 商品库只使用真实商品单珠裁切图片", () => {
+  const js = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+
+  assert.match(js, /const SOURCE_OFFER_URL = "\.\/assets\/sources\/O1CN01O2oXek1QAHMu4KEPK_!!2213808671935-0-cib\.jpg"/);
+  assert.match(js, /imageUrl: "\.\/assets\/beads\/bead-03\.png"/);
+  assert.match(js, /sourceUrl: SOURCE_OFFER_URL/);
+  assert.doesNotMatch(js, /Wikimedia|Rose_Quartz_Bracelet|Rock_crystal_beads|奶白晶|古法彩珠/);
 });
 
 // 验证真实图片加载失败时不会把珠子退化成统一白底。
@@ -279,6 +436,44 @@ test("buildBeadBackgroundImage 始终保留本地材质兜底", () => {
   assert.match(backgroundImage, /url\("https:\/\/example\.invalid\/bead\.jpg"\)/);
   assert.match(backgroundImage, /conic-gradient/);
   assert.match(backgroundImage, /#07080b/);
+});
+
+// 验证真实珠子图使用圆形无重复贴图，避免单珠边缘出现拼接痕迹。
+test("styles.css 真实单珠图片圆形裁切且不重复拼接", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.selected-bead-core, \.product-bead\s*\{[^}]*background-repeat: no-repeat;/s);
+  assert.match(css, /\.selected-bead-core, \.product-bead\s*\{[^}]*clip-path: circle\(50% at 50% 50%\);/s);
+  assert.match(css, /\.selected-bead-core, \.product-bead\s*\{[^}]*isolation: isolate;/s);
+});
+
+// 验证单珠素材来自真实商品图的一颗完整圆珠，圆外透明且中心保留摄影纹理。
+test("assets/beads 单珠素材来自真实商品圆珠裁切且无外描边", () => {
+  const beadDirectory = new URL("../assets/beads/", import.meta.url);
+  const source = decodePngPixels(readFileSync(new URL("../assets/sources/extracted-single-bead.png", import.meta.url)));
+  const sourceTextureScore = calculateLocalTextureScore(source);
+  assert.ok(sourceTextureScore > 3, `真实单珠母版纹理不足：${sourceTextureScore.toFixed(2)}`);
+
+  const offenders = readdirSync(beadDirectory)
+    .filter((fileName) => fileName.endsWith(".png"))
+    .map((fileName) => {
+      const pixels = decodePngPixels(readFileSync(new URL(fileName, beadDirectory)));
+      const cornerAlpha = pixels.pixels[3] + pixels.pixels[(pixels.width - 1) * 4 + 3]
+        + pixels.pixels[((pixels.height - 1) * pixels.width) * 4 + 3]
+        + pixels.pixels[(pixels.width * pixels.height - 1) * 4 + 3];
+      const centerIndex = ((Math.floor(pixels.height / 2) * pixels.width) + Math.floor(pixels.width / 2)) * 4;
+      return {
+        cornerAlpha,
+        fileName,
+        softEdgeScore: calculateSoftEdgeScore(pixels),
+        textureScore: calculateLocalTextureScore(pixels),
+        centerAlpha: pixels.pixels[centerIndex + 3],
+      };
+    })
+    .filter(({ centerAlpha, cornerAlpha, softEdgeScore, textureScore }) => centerAlpha < 240 || cornerAlpha > 0 || softEdgeScore > 0.04 || textureScore < 3)
+    .map(({ centerAlpha, cornerAlpha, fileName, softEdgeScore, textureScore }) => `${fileName}:center=${centerAlpha},corner=${cornerAlpha},soft=${softEdgeScore.toFixed(3)},texture=${textureScore.toFixed(2)}`);
+
+  assert.deepEqual(offenders, []);
 });
 
 // 验证拖拽浮层按真实尺寸和触点偏移对齐，而不是固定减 24px。
@@ -355,8 +550,8 @@ test("createInteractionSoundPlan 生成轻量 WebAudio 音效计划", () => {
 
 // 验证空白、未知分类和不完整商品不会破坏商品筛选结果。
 test("filterProducts 安全处理边界筛选条件", () => {
-  const validProduct = { id: "milk-8", category: "milk", name: "奶白晶", diameterMm: 8, priceCents: 400 };
-  const invalidProduct = { id: "broken", category: "milk", name: "损坏珠子", diameterMm: 0, priceCents: 0 };
+  const validProduct = { id: "blue-moon-4", category: "moonstone", name: "蓝月光石", diameterMm: 4, priceCents: 400 };
+  const invalidProduct = { id: "broken", category: "moonstone", name: "损坏珠子", diameterMm: 0, priceCents: 0 };
 
   assert.deepEqual(filterProducts([validProduct, invalidProduct], "all", "  "), [validProduct]);
   assert.deepEqual(filterProducts([validProduct], "unknown", ""), []);
@@ -535,13 +730,13 @@ test("calculateBracelet3DScene 生成不透明实体珠且无底部阴影", () =
 // 验证 3D 场景会把真实商品图片与色调交给 canvas，避免只渲染统一的卡通渐变珠。
 test("calculateBracelet3DScene 为珠子提供真实图片材质信息", () => {
   const items = [
-    { id: "bead-1", productId: "rose-8", name: "粉水晶", diameterMm: 8, priceCents: 600 },
-    { id: "bead-2", productId: "black-8", name: "黑曜石", diameterMm: 8, priceCents: 500 },
+    { id: "bead-1", productId: "rose-quartz-4", name: "粉晶", diameterMm: 4, priceCents: 300 },
+    { id: "bead-2", productId: "black-agate-4", name: "黑色条纹玛瑙", diameterMm: 4, priceCents: 400 },
   ];
   const scene = calculateBracelet3DScene(items, 320, 240, 0.2);
 
   assert.equal(scene.error, null);
-  assert.ok(scene.beads.every((bead) => bead.textureImageUrl?.startsWith("https://commons.wikimedia.org/")));
+  assert.ok(scene.beads.every((bead) => bead.textureImageUrl?.startsWith("./assets/beads/bead-")));
   assert.deepEqual(
     new Set(scene.beads.map((bead) => bead.tone)),
     new Set(["rose", "black"]),

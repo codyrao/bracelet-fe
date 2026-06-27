@@ -435,20 +435,30 @@ export function calculateBracelet3DScene(items, width = 320, height = 240, rotat
   return { axis: null, beads, cordSegments, error: null, orbitPath: [], wrist: null };
 }
 
-// 原型使用的本地商品库，避免依赖网络图片或后端接口。
+const SOURCE_OFFER_URL = "./assets/sources/O1CN01O2oXek1QAHMu4KEPK_!!2213808671935-0-cib.jpg";
+
+// 商品库仅保留从真实商品图裁切出的本地单珠图，避免远程防盗链影响演示。
 const PRODUCTS = [
-  { id: "clear-6", category: "clear", name: "净体白水晶", diameterMm: 6, priceCents: 300, tone: "clear", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Rock_crystal_beads.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Rock_crystal_beads.jpg" },
-  { id: "clear-8", category: "clear", name: "净体白水晶", diameterMm: 8, priceCents: 500, tone: "clear", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Rock_crystal_beads.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Rock_crystal_beads.jpg" },
-  { id: "clear-10", category: "clear", name: "净体白水晶", diameterMm: 10, priceCents: 1000, tone: "clear", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Glass_and_rock_crystal_beads_MET_sf151301color.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Glass_and_rock_crystal_beads_MET_sf151301color.jpg" },
-  { id: "milk-8", category: "milk", name: "奶白晶", diameterMm: 8, priceCents: 400, tone: "milk", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Glass_and_rock_crystal_beads_MET_sf151301color.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Glass_and_rock_crystal_beads_MET_sf151301color.jpg" },
-  { id: "milk-10", category: "milk", name: "奶白晶", diameterMm: 10, priceCents: 800, tone: "milk", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Beads_from_a_Necklace_MET_dp30573.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Beads_from_a_Necklace_MET_dp30573.jpg" },
-  { id: "rose-8", category: "rose", name: "粉水晶", diameterMm: 8, priceCents: 600, tone: "rose", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Rose_Quartz_Bracelet.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Rose_Quartz_Bracelet.jpg" },
-  { id: "rose-10", category: "rose", name: "粉水晶", diameterMm: 10, priceCents: 900, tone: "rose", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Rose_Quartz_Bracelet.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Rose_Quartz_Bracelet.jpg" },
-  { id: "tea-10", category: "tea", name: "茶水晶", diameterMm: 10, priceCents: 700, tone: "tea", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Baltic_amber_bracelet_honey_color.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Baltic_amber_bracelet_honey_color.jpg" },
-  { id: "amber-8", category: "amber", name: "琥珀", diameterMm: 8, priceCents: 900, tone: "tea", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Baltic_amber_bracelet_with_mix_of_colors.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Baltic_amber_bracelet_with_mix_of_colors.jpg" },
-  { id: "black-8", category: "black", name: "黑曜石", diameterMm: 8, priceCents: 500, tone: "black", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Necklace_of_Hapiankhtifi_MET_12.183.13a_b_0016.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Necklace_of_Hapiankhtifi_MET_12.183.13a_b_0016.jpg" },
-  { id: "amethyst-8", category: "amethyst", name: "紫水晶", diameterMm: 8, priceCents: 700, tone: "rose", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Amethyst_Necklace_with_lavender_amethyst_beads.jpg?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Amethyst_Necklace_with_lavender_amethyst_beads.jpg" },
-  { id: "mixed-8", category: "mixed", name: "古法彩珠", diameterMm: 8, priceCents: 600, tone: "tea", imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Pgbeads7.JPG?width=420", sourceUrl: "https://commons.wikimedia.org/wiki/File:Pgbeads7.JPG" },
+  { id: "black-hair-4", category: "quartz", name: "黑发晶", diameterMm: 4, priceCents: 300, tone: "black", imageUrl: "./assets/beads/bead-03.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "pearl-shell-4", category: "shell", name: "珍珠贝", diameterMm: 4, priceCents: 300, tone: "milk", imageUrl: "./assets/beads/bead-04.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "blue-moon-4", category: "moonstone", name: "蓝月光石", diameterMm: 4, priceCents: 400, tone: "clear", imageUrl: "./assets/beads/bead-06.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "rose-quartz-4", category: "quartz", name: "粉晶", diameterMm: 4, priceCents: 300, tone: "rose", imageUrl: "./assets/beads/bead-09.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "hetian-jade-4", category: "jade", name: "和田玉", diameterMm: 4, priceCents: 500, tone: "tea", imageUrl: "./assets/beads/bead-11.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "black-agate-4", category: "agate", name: "黑色条纹玛瑙", diameterMm: 4, priceCents: 400, tone: "black", imageUrl: "./assets/beads/bead-12.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "gray-moon-4", category: "moonstone", name: "灰月光石", diameterMm: 4, priceCents: 400, tone: "clear", imageUrl: "./assets/beads/bead-13.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "orange-moon-4", category: "moonstone", name: "橙月光石", diameterMm: 4, priceCents: 400, tone: "tea", imageUrl: "./assets/beads/bead-15.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "white-agate-4", category: "agate", name: "白玛瑙", diameterMm: 4, priceCents: 300, tone: "clear", imageUrl: "./assets/beads/bead-16.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "white-crystal-4", category: "quartz", name: "白水晶", diameterMm: 4, priceCents: 300, tone: "clear", imageUrl: "./assets/beads/bead-18.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "prehnite-4", category: "quartz", name: "葡萄石", diameterMm: 4, priceCents: 500, tone: "tea", imageUrl: "./assets/beads/bead-19.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "purple-phantom-4", category: "quartz", name: "紫幽灵", diameterMm: 4, priceCents: 500, tone: "rose", imageUrl: "./assets/beads/bead-20.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "citrine-4", category: "quartz", name: "黄水晶", diameterMm: 4, priceCents: 400, tone: "tea", imageUrl: "./assets/beads/bead-21.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "garnet-4", category: "color", name: "石榴石", diameterMm: 4, priceCents: 400, tone: "rose", imageUrl: "./assets/beads/bead-22.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "moss-agate-4", category: "agate", name: "冰种水草玛瑙", diameterMm: 4, priceCents: 500, tone: "clear", imageUrl: "./assets/beads/bead-24.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "blue-moon-5", category: "moonstone", name: "蓝月光石", diameterMm: 5, priceCents: 500, tone: "clear", imageUrl: "./assets/beads/bead-26.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "tea-crystal-4", category: "quartz", name: "茶水晶", diameterMm: 4, priceCents: 400, tone: "tea", imageUrl: "./assets/beads/bead-28.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "amethyst-4", category: "quartz", name: "紫水晶", diameterMm: 4, priceCents: 400, tone: "rose", imageUrl: "./assets/beads/bead-33.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "water-agate-4", category: "agate", name: "水草玛瑙", diameterMm: 4, priceCents: 500, tone: "clear", imageUrl: "./assets/beads/bead-35.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "red-garden-4", category: "color", name: "红胶花水晶", diameterMm: 4, priceCents: 500, tone: "tea", imageUrl: "./assets/beads/bead-37.png", sourceUrl: SOURCE_OFFER_URL },
 ];
 
 // 集中保存演示原型的可调整业务规则。
@@ -460,14 +470,12 @@ const RULES = {
 // 侧边分类与商品库 category 字段一一对应。
 const CATEGORIES = [
   { id: "all", label: "全部" },
-  { id: "clear", label: "白水晶" },
-  { id: "milk", label: "奶白晶" },
-  { id: "rose", label: "粉水晶" },
-  { id: "tea", label: "茶水晶" },
-  { id: "amber", label: "琥珀" },
-  { id: "black", label: "黑曜石" },
-  { id: "amethyst", label: "紫水晶" },
-  { id: "mixed", label: "彩珠" },
+  { id: "quartz", label: "水晶" },
+  { id: "moonstone", label: "月光石" },
+  { id: "agate", label: "玛瑙" },
+  { id: "jade", label: "玉石" },
+  { id: "shell", label: "贝珠" },
+  { id: "color", label: "彩石" },
 ];
 
 // canvas 3D 预览使用的材质色板，和商品 tone 字段保持一致。
@@ -732,6 +740,7 @@ function drawCoverImage(context, image, x, y, diameter) {
 function drawPreviewBead(context, bead, rotation, onImageLoad = null) {
   const palette = getPreviewTonePalette(bead);
   const productImage = getProductImage(bead.textureImageUrl, onImageLoad);
+  const hasPhotoTexture = Boolean(productImage?.complete && productImage.naturalWidth > 0);
   const radiusX = bead.radiusX ?? bead.radius;
   const radiusY = bead.radiusY ?? bead.radius;
   const maxRadius = Math.max(radiusX, radiusY);
@@ -752,20 +761,10 @@ function drawPreviewBead(context, bead, rotation, onImageLoad = null) {
   context.beginPath();
   context.ellipse(bead.x, bead.y, radiusX, radiusY, bead.tilt ?? 0, 0, Math.PI * 2);
   context.clip();
-  if (productImage?.complete && productImage.naturalWidth > 0) {
+  if (hasPhotoTexture) {
     drawCoverImage(context, productImage, bead.x, bead.y, maxRadius * 2.12);
-    context.globalCompositeOperation = "multiply";
-    context.globalAlpha = 0.26;
-    context.fillStyle = gradient;
-    context.fillRect(bead.x - maxRadius, bead.y - maxRadius, maxRadius * 2, maxRadius * 2);
-    context.globalCompositeOperation = "screen";
-    context.globalAlpha = 0.24;
-    context.fillStyle = palette.highlight;
-    context.beginPath();
-    context.ellipse(bead.x - radiusX * 0.2, bead.y - radiusY * 0.24, radiusX * 0.82, radiusY * 0.62, -0.42, 0, Math.PI * 2);
-    context.fill();
-    context.globalCompositeOperation = "source-over";
-    context.globalAlpha = 1;
+    context.restore();
+    return;
   } else {
     context.fillStyle = gradient;
     context.fillRect(bead.x - maxRadius, bead.y - maxRadius, maxRadius * 2, maxRadius * 2);
@@ -850,17 +849,6 @@ function drawPreviewBead(context, bead, rotation, onImageLoad = null) {
     context.fill();
   }
   context.restore();
-
-  context.strokeStyle = "rgba(255,255,255,.45)";
-  context.lineWidth = 0.8;
-  context.beginPath();
-  context.ellipse(bead.x, bead.y, Math.max(1, radiusX - 0.75), Math.max(1, radiusY - 0.75), bead.tilt ?? 0, 0, Math.PI * 2);
-  context.stroke();
-  context.strokeStyle = "rgba(56,40,32,.18)";
-  context.lineWidth = Math.max(1, maxRadius * 0.055);
-  context.beginPath();
-  context.ellipse(bead.x, bead.y, Math.max(1, radiusX - 1.2), Math.max(1, radiusY - 1.2), bead.tilt ?? 0, Math.PI * 0.1, Math.PI * 1.28);
-  context.stroke();
 }
 
 // 在珠子下方绘制短麻绳段，只连接珠子间空隙，不穿过珠子内部。
