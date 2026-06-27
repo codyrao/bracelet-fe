@@ -20,7 +20,7 @@
       </header>
 
       <section class="status-row" aria-label="手链状态">
-        <span class="notice-pill">✦ 使用须知</span>
+        <button id="notice-button" class="notice-pill" type="button">✦ 使用须知</button>
         <span id="count-status" class="status-pill">珠子数量不足（0/16）</span>
         <span id="price-status" class="status-pill">总价格: ¥ 0.0</span>
       </section>
@@ -37,6 +37,7 @@
       <section class="stage-actions" aria-label="手链编辑操作">
         <button id="clear-button" class="outline-button" type="button" disabled>✦ 清空</button>
         <span class="selection-hint">拖到手链添加 · 拖到珠子替换</span>
+        <button id="checkout-button" class="outline-button checkout-button" type="button">确认订单</button>
         <button id="inspect-button" class="outline-button inspect-button" type="button">3D 展示</button>
       </section>
 
@@ -66,7 +67,34 @@
         </div>
         <h2 id="inspector-name">整条手链</h2>
         <p id="inspector-detail" class="inspector-detail"></p>
+        <button id="inspector-checkout-button" class="order-primary" type="button">确认订单</button>
         <p class="inspector-tip">地球仪式斜向环绕视角，拖动商品到这里可预览加入后的整圈效果</p>
+      </form>
+    </dialog>
+    <dialog id="order-dialog" class="order-dialog" aria-labelledby="order-title">
+      <form method="dialog" class="order-card">
+        <button class="order-close" type="submit" aria-label="关闭订单确认">×</button>
+        <p class="order-eyebrow">ORDER CONFIRM</p>
+        <h2 id="order-title">确认订单</h2>
+        <div id="order-preview" class="order-preview" aria-label="手链平面预览图"></div>
+        <div id="order-summary" class="order-summary" aria-live="polite"></div>
+        <menu class="order-actions">
+          <button class="outline-button" type="submit">再看看</button>
+          <button id="order-confirm-button" class="order-primary" type="submit">确认</button>
+        </menu>
+      </form>
+    </dialog>
+    <dialog id="usage-dialog" class="usage-dialog" aria-labelledby="usage-title">
+      <form method="dialog" class="usage-card">
+        <button class="usage-close" type="submit" aria-label="关闭使用须知">×</button>
+        <p class="usage-eyebrow">DIY 手链说明</p>
+        <h2 id="usage-title">使用须知</h2>
+        <ul>
+          <li>点击珠子会把它放到手链绳子上，最多 16 颗。</li>
+          <li>拖动商品到手链可添加，拖到已有珠子可替换。</li>
+          <li>轻点已选珠子会滚动展示，长按可删除。</li>
+          <li>点击「3D 展示」查看整条手链的环绕预览。</li>
+        </ul>
       </form>
     </dialog>
     <script type="module" src="./app.js"></script>
