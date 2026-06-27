@@ -12,17 +12,14 @@
       <header class="topbar">
         <button class="icon-button" type="button" aria-label="返回" onclick="history.back()">‹</button>
         <h1>链小店</h1>
-        <div class="topbar-actions" aria-label="页面操作">
-          <button class="round-action" type="button" aria-label="更多操作">•••</button>
-          <button class="round-action" type="button" aria-label="最小化">−</button>
-          <button class="round-action" type="button" aria-label="关闭">⊙</button>
-        </div>
       </header>
 
       <section class="status-row" aria-label="手链状态">
         <button id="notice-button" class="notice-pill" type="button">✦ 使用须知</button>
         <span id="count-status" class="status-pill">珠子数量不足（0/20）</span>
+        <span id="wrist-status" class="status-pill">手围: --</span>
         <span id="price-status" class="status-pill">总价格: ¥ 0.0</span>
+        <button id="sound-button" class="status-pill sound-button" type="button" aria-pressed="true">♪ 音效</button>
       </section>
 
       <section id="bracelet-stage" class="bracelet-stage" aria-label="手链预览">
@@ -77,12 +74,18 @@
         <button class="inspector-close" type="button" aria-label="关闭 3D 展示">×</button>
         <p class="inspector-eyebrow">手链 3D 展示</p>
         <div class="inspector-stage" aria-label="可旋转的整条手链 3D 展示">
+          <div id="inspector-loading" class="inspector-loading" role="status" aria-live="polite" hidden>
+            <span class="loading-spinner" aria-hidden="true"></span>
+            <span>正在生成手链预览</span>
+          </div>
           <canvas id="inspector-canvas" class="inspector-canvas" width="640" height="480"></canvas>
         </div>
         <h2 id="inspector-name">整条手链</h2>
         <p id="inspector-detail" class="inspector-detail"></p>
-        <button id="inspector-checkout-button" class="order-primary" type="button">确认订单</button>
-        <p class="inspector-tip">地球仪式斜向环绕视角，拖动商品到这里可预览加入后的整圈效果</p>
+        <div class="inspector-actions">
+          <button id="inspector-checkout-button" class="order-primary" type="button">确认订单</button>
+        </div>
+        <p class="inspector-tip">地球仪式斜向环绕视角，拖动商品到这里可预览加入后的整圈效果。</p>
       </form>
     </dialog>
     <dialog id="order-dialog" class="order-dialog" aria-labelledby="order-title">

@@ -8,9 +8,11 @@ import {
   buildBeadBackgroundImage,
   calculateBeadFlightFrame,
   calculateDragGhostFrame,
+  createInteractionSoundPlan,
   createOrderSummary,
   createInitialState,
   createClearedBraceletState,
+  estimateBraceletWristCm,
   calculateBeadPositions,
   calculateBracelet3DScene,
   calculateBraceletTrackFrame,
@@ -61,6 +63,29 @@ test("index.html 在首页和 3D 展示中提供确认订单入口", () => {
   assert.match(html, /id="order-summary"/);
 });
 
+// 验证页面保留手围和音效状态，但不再暴露试戴预览入口，避免 3D 弹窗主路径分叉。
+test("index.html 提供手围和音效状态且移除试戴预览入口", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+  assert.match(html, /id="wrist-status"/);
+  assert.match(html, /手围/);
+  assert.match(html, /id="sound-button"/);
+  assert.match(html, /aria-pressed="true"/);
+  assert.doesNotMatch(html, /id="tryon-toggle-button"/);
+  assert.doesNotMatch(html, /试戴预览/);
+});
+
+// 验证 PC 顶部不再显示无业务意义的小程序模拟控制，避免遮挡使用须知按钮。
+test("index.html 移除顶部模拟窗口控制按钮", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.doesNotMatch(html, /topbar-actions/);
+  assert.doesNotMatch(html, /round-action/);
+  assert.match(css, /\.topbar\s*\{[^}]*grid-template-columns: 44px 1fr;/s);
+  assert.match(css, /@media \(min-width: 900px\)[\s\S]*\.status-row\s*\{[^}]*justify-content: flex-start;/);
+});
+
 // 验证订单平面图复用首页珠子样式，并避免额外深棕背景线。
 test("styles.css 订单平面图复用首页珠子且不绘制背景线", () => {
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
@@ -103,6 +128,16 @@ test("styles.css 移动端全屏展示且关闭触控缩放手势", () => {
   assert.match(css, /@media \(min-width: 600px\) and \(max-width: 899px\)/);
 });
 
+// 验证手机端页面和商品抽屉都允许纵向滚动，不会被外层 overflow hidden 锁死。
+test("styles.css 手机端允许商品抽屉顺畅下滑", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.app-shell\s*\{[^}]*overflow-x: hidden;[^}]*overflow-y: auto;/s);
+  assert.match(css, /\.picker\s*\{[^}]*display: grid;[^}]*grid-template-rows: auto minmax\(0, 1fr\);/s);
+  assert.match(css, /\.picker-content\s*\{[^}]*min-height: 0;/s);
+  assert.match(css, /\.category-list,\s*\.catalog-panel\s*\{[^}]*min-height: 0;[^}]*-webkit-overflow-scrolling: touch;/s);
+});
+
 // 验证每个弹窗都具备进入和退出动效，关闭时不直接瞬间消失。
 test("styles.css 为每个弹窗提供高性能进入和退出过渡", () => {
   const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
@@ -122,6 +157,22 @@ test("styles.css 为每个弹窗提供高性能进入和退出过渡", () => {
   assert.match(html, /class="inspector-close" type="button"/);
   assert.match(html, /class="order-close" type="button"/);
   assert.match(html, /class="usage-close" type="button"/);
+});
+
+// 验证 3D 弹窗先展示轻量 loading UI，再异步绘制 canvas，避免打开瞬间卡顿。
+test("index.html 和 app.js 为 3D 弹窗提供轻量 loading 过渡", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+  const js = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+
+  assert.match(html, /id="inspector-loading"/);
+  assert.match(html, /role="status"/);
+  assert.match(css, /\.inspector-loading/);
+  assert.match(css, /@keyframes loading-spin/);
+  assert.doesNotMatch(css, /backdrop-filter:\s*blur/);
+  assert.match(js, /function showInspectorLoading/);
+  assert.match(js, /window\.requestAnimationFrame\(\(\) => \{/);
+  assert.match(js, /showInspectorLoading\(elements, false\)/);
 });
 
 // 验证点击和拖拽添加珠子都走同一套飞入绳圈动效，保证添加反馈一致。
@@ -154,6 +205,33 @@ test("styles.css 为珠子和麻绳提供实物质感层", () => {
   assert.match(css, /\.selected-bead-core::after, \.product-bead::after\s*\{[^}]*box-shadow: inset 0 0 0 1px/s);
   assert.match(css, /\.selected-bead-core.has-photo::after, \.product-bead.has-photo::after\s*\{[^}]*mix-blend-mode: soft-light;/s);
   assert.match(css, /\.bracelet-track \.rope-fiber\s*\{[^}]*stroke-dasharray: 6 4 2 5;/s);
+});
+
+// 验证视频模板里的轻盈呼吸感和弹性入环节奏通过 CSS token 固化下来。
+test("styles.css 提供手链呼吸、弹性飞入和音效按钮状态", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.bracelet-stage\.has-beads::before\s*\{[^}]*animation: stage-breathe/s);
+  assert.match(css, /\.bracelet-track\.has-beads\s*\{[^}]*animation: bracelet-float/s);
+  assert.match(css, /\.sound-button\.is-muted/);
+  assert.match(css, /@keyframes stage-breathe/);
+  assert.match(css, /@keyframes bracelet-float/);
+  assert.match(css, /cubic-bezier\(\.16, 1\.08, \.24, 1\)/);
+});
+
+// 验证点击商品卡时有视频模板里的灰色圆形按压涟漪，并配合飞珠动画。
+test("styles.css 和 app.js 提供商品卡灰色涟漪装珠动画", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+  const js = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+
+  assert.match(css, /\.product-card::after/);
+  assert.match(css, /\.product-card\.is-placing::after/);
+  assert.match(css, /@keyframes product-place-ripple/);
+  assert.match(css, /rgb\(80 80 80 \/ 18%\)/);
+  assert.match(css, /@keyframes bead-flight[\s\S]*scale\(1\.24\)/);
+  assert.match(js, /function playProductPlacementFeedback/);
+  assert.match(js, /productButton\.classList\.add\("is-placing"\)/);
+  assert.match(js, /playProductPlacementFeedback\(productButton\)/);
 });
 
 // 验证商品库同时支持分类和关键词筛选。
@@ -226,11 +304,11 @@ test("calculateBeadFlightFrame 生成珠子放到绳子上的过渡动画坐标"
     arcY: 119,
     endX: 166,
     endY: 204,
-    easing: "cubic-bezier(.18, .82, .18, 1)",
+    easing: "cubic-bezier(.16, 1.08, .24, 1)",
     size: 44,
     startX: 40,
     startY: 102,
-    durationMs: 920,
+    durationMs: 980,
   });
 });
 
@@ -244,6 +322,35 @@ test("calculateBeadFlightFrame 在电脑端长距离移动时保持平滑过渡"
   assert.ok(frame.durationMs >= 1100);
   assert.ok(frame.durationMs <= 1280);
   assert.ok(frame.arcY < 348);
+});
+
+// 验证手围按珠子直径和绳结余量估算，空值和坏数据不会污染展示。
+test("estimateBraceletWristCm 估算手围并安全处理边界", () => {
+  const items = [
+    { id: "bead-1", diameterMm: 10, priceCents: 500 },
+    { id: "bead-2", diameterMm: 8, priceCents: 500 },
+    { id: "bead-3", diameterMm: 8, priceCents: 500 },
+  ];
+
+  assert.equal(estimateBraceletWristCm(items), 2.8);
+  assert.equal(estimateBraceletWristCm([]), 0);
+  assert.equal(estimateBraceletWristCm([{ id: "broken", diameterMm: 0, priceCents: 0 }]), 0);
+});
+
+// 验证音效不依赖外部音频资源，且能给添加、滚动、弹窗提供不同的轻反馈。
+test("createInteractionSoundPlan 生成轻量 WebAudio 音效计划", () => {
+  const addPlan = createInteractionSoundPlan("add");
+  const rollPlan = createInteractionSoundPlan("roll");
+  const modalPlan = createInteractionSoundPlan("modal");
+  const mutedPlan = createInteractionSoundPlan("add", { muted: true });
+
+  assert.equal(addPlan.muted, false);
+  assert.deepEqual(addPlan.frequencies, [520, 760]);
+  assert.ok(addPlan.durationMs <= 180);
+  assert.notDeepEqual(rollPlan.frequencies, addPlan.frequencies);
+  assert.notDeepEqual(modalPlan.frequencies, addPlan.frequencies);
+  assert.equal(mutedPlan.muted, true);
+  assert.deepEqual(mutedPlan.frequencies, []);
 });
 
 // 验证空白、未知分类和不完整商品不会破坏商品筛选结果。
@@ -514,6 +621,22 @@ test("calculateBracelet3DScene 生成珠间麻绳且不生成辅助线", () => {
   assert.ok(scene.cordSegments.every((segment) => [segment.x1, segment.y1, segment.x2, segment.y2, segment.lineWidth].every(Number.isFinite)));
 });
 
+// 验证 3D 珠间麻绳使用弧线控制点，少量珠子时不呈现生硬多边形折线。
+test("calculateBracelet3DScene 为珠间麻绳生成弧线控制点", () => {
+  const items = Array.from({ length: 8 }, (_, index) => ({
+    id: `bead-${index + 1}`,
+    productId: "clear-8",
+    name: "净体白水晶",
+    diameterMm: 8,
+    priceCents: 500,
+  }));
+  const scene = calculateBracelet3DScene(items, 390, 282, 0.4);
+
+  assert.equal(scene.error, null);
+  assert.ok(scene.cordSegments.every((segment) => Number.isFinite(segment.cx) && Number.isFinite(segment.cy)));
+  assert.ok(scene.cordSegments.some((segment) => Math.abs(segment.cy - (segment.y1 + segment.y2) / 2) > 1));
+});
+
 // 验证 3D 手链视觉包围盒居中，避免弹窗里整圈珠子偏左或偏右。
 test("calculateBracelet3DScene 居中整条 3D 手链", () => {
   const items = Array.from({ length: 20 }, (_, index) => ({
@@ -696,6 +819,24 @@ test("calculateBracelet3DScene 生成更真实的珠孔和麻绳层次", () => {
   assert.ok(scene.beads.every((bead) => bead.radiusX > 0 && bead.radiusY > 0 && bead.textureSeed >= 0));
   assert.ok(new Set(radiusValues).size > 4);
   assert.equal(scene.cordSegments.length, items.length);
+});
+
+// 验证 3D 展示只输出整条手链本身，即使旧调用传入 tryOn 也不会再生成手腕背景层。
+test("calculateBracelet3DScene 移除试戴手腕背景层", () => {
+  const items = Array.from({ length: 12 }, (_, index) => ({
+    id: `bead-${index + 1}`,
+    productId: index % 2 === 0 ? "rose-8" : "black-8",
+    name: "测试珠",
+    diameterMm: 8,
+    priceCents: 500,
+  }));
+  const normalScene = calculateBracelet3DScene(items, 390, 282, 0.3);
+  const legacyTryOnScene = calculateBracelet3DScene(items, 390, 282, 0.3, { tryOn: true });
+
+  assert.equal(normalScene.wrist, null);
+  assert.equal(legacyTryOnScene.error, null);
+  assert.equal(legacyTryOnScene.wrist, null);
+  assert.equal(legacyTryOnScene.cordSegments.length, items.length);
 });
 
 // 验证已选珠子会生成实时价格、数量提示和环形预览坐标。

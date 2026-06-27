@@ -213,6 +213,22 @@ export function calculateSummary(items, minimumCount = 20) {
   };
 }
 
+// 根据已选珠子的直径和弹力绳活动余量估算可展示手围，供状态栏同步展示。
+export function estimateBraceletWristCm(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return 0;
+  }
+
+  const validItems = items.filter(isValidBraceletItem);
+  if (validItems.length === 0) {
+    return 0;
+  }
+
+  const beadDiameterMm = validItems.reduce((total, item) => total + item.diameterMm, 0);
+  const cordAllowanceMm = validItems.length * 0.6;
+  return Math.round(((beadDiameterMm + cordAllowanceMm) / 10) * 10) / 10;
+}
+
 // 根据珠子数量计算顶视图绳圈缩放比例，保证满珠时珠子和绳圈同步收紧。
 function calculateBraceletRadiusScale(items) {
   const denseCountOffset = Math.max(0, Array.isArray(items) ? items.length - 16 : 0);
@@ -285,11 +301,11 @@ function createStableUnit(seedText) {
 // 为 canvas 3D 展示计算投影坐标、半径和深度排序，制造近大远小的真实空间感。
 export function calculateBracelet3DScene(items, width = 320, height = 240, rotation = 0) {
   if (!Array.isArray(items) || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return { axis: null, beads: [], cordSegments: [], error: new Error("3D 手链预览参数无效。"), orbitPath: [] };
+    return { axis: null, beads: [], cordSegments: [], error: new Error("3D 手链预览参数无效。"), orbitPath: [], wrist: null };
   }
 
   if (items.some((item) => !isValidBraceletItem(item))) {
-    return { axis: null, beads: [], cordSegments: [], error: new Error("已选珠子信息不完整，无法生成 3D 预览。"), orbitPath: [] };
+    return { axis: null, beads: [], cordSegments: [], error: new Error("已选珠子信息不完整，无法生成 3D 预览。"), orbitPath: [], wrist: null };
   }
 
   const centerX = width / 2;
@@ -364,7 +380,7 @@ export function calculateBracelet3DScene(items, width = 320, height = 240, rotat
   });
 
   if (projectedBeads.length === 0) {
-    return { axis: null, beads: [], cordSegments: [], error: null, orbitPath: [] };
+    return { axis: null, beads: [], cordSegments: [], error: null, orbitPath: [], wrist: null };
   }
 
   const minX = Math.min(...projectedBeads.map((bead) => bead.x - bead.radiusX));
@@ -390,9 +406,17 @@ export function calculateBracelet3DScene(items, width = 320, height = 240, rotat
       const startTrim = Math.min(distance * 0.42, Math.max(bead.radiusX, bead.radiusY) * 0.72);
       const endTrim = Math.min(distance * 0.42, Math.max(nextBead.radiusX, nextBead.radiusY) * 0.72);
       const averageDepth = (bead.depth + nextBead.depth) / 2;
+      const middleX = (bead.x + nextBead.x) / 2;
+      const middleY = (bead.y + nextBead.y) / 2;
+      const radialX = middleX - centerX;
+      const radialY = middleY - centerY;
+      const radialLength = Math.max(1, Math.hypot(radialX, radialY));
+      const curveLift = Math.min(distance * 0.22, Math.max(8, ((bead.radius + nextBead.radius) / 2) * 0.72));
 
       return {
         color: "rgba(74, 49, 35, .72)",
+        cx: middleX + (radialX / radialLength) * curveLift,
+        cy: middleY + (radialY / radialLength) * curveLift,
         depth: averageDepth,
         fiberColor: "rgba(199, 153, 111, .38)",
         id: `${bead.id}-${nextBead.id}`,
@@ -408,7 +432,7 @@ export function calculateBracelet3DScene(items, width = 320, height = 240, rotat
     : [];
   const beads = [...centeredBeads];
   beads.sort((left, right) => left.depth - right.depth);
-  return { axis: null, beads, cordSegments, error: null, orbitPath: [] };
+  return { axis: null, beads, cordSegments, error: null, orbitPath: [], wrist: null };
 }
 
 // 原型使用的本地商品库，避免依赖网络图片或后端接口。
@@ -489,19 +513,35 @@ export function calculateBeadFlightFrame(sourceRect, targetRect) {
   const endY = targetRect.top + targetHeight / 2;
   const travelDistance = Math.hypot(endX - startX, endY - startY);
   const arcLift = Math.max(34, Math.min(132, travelDistance * 0.18));
-  const durationMs = Math.max(920, Math.min(1280, Math.round(760 + travelDistance * 0.55)));
+  const durationMs = Math.max(980, Math.min(1320, Math.round(820 + travelDistance * 0.55)));
 
   return {
     arcX: (startX + endX) / 2,
     arcY: (startY + endY) / 2 - arcLift,
     durationMs,
-    easing: "cubic-bezier(.18, .82, .18, 1)",
+    easing: "cubic-bezier(.16, 1.08, .24, 1)",
     endX: targetRect.left + targetWidth / 2,
     endY: targetRect.top + targetHeight / 2,
     size: Math.max(sourceWidth, sourceHeight),
     startX,
     startY,
   };
+}
+
+// 生成不依赖外部素材的轻量交互音效计划，真实播放由浏览器 WebAudio 完成。
+export function createInteractionSoundPlan(kind, options = {}) {
+  if (options.muted) {
+    return { durationMs: 0, frequencies: [], gain: 0, kind, muted: true };
+  }
+
+  const plans = {
+    add: { durationMs: 150, frequencies: [520, 760], gain: 0.042 },
+    clear: { durationMs: 190, frequencies: [420, 280], gain: 0.036 },
+    modal: { durationMs: 130, frequencies: [360, 540], gain: 0.032 },
+    roll: { durationMs: 170, frequencies: [620, 460, 700], gain: 0.03 },
+  };
+
+  return { kind, muted: false, ...(plans[kind] ?? plans.add) };
 }
 
 // 生成确认订单弹窗使用的摘要信息，只做前端展示，不创建真实订单。
@@ -635,6 +675,7 @@ function renderSummary(elements, state) {
   const summary = calculateSummary(state.items, RULES.minimumBeadCount);
   warnAndReturn(summary.error);
   const isAtMaximum = summary.count >= RULES.maximumBeadCount;
+  const wristCm = estimateBraceletWristCm(state.items);
   elements.countStatus.textContent = isAtMaximum
     ? `珠子数量已满（${RULES.maximumBeadCount}/${RULES.maximumBeadCount}）`
     : summary.isInsufficient
@@ -642,6 +683,8 @@ function renderSummary(elements, state) {
       : `珠子数量已满（${RULES.maximumBeadCount}/${RULES.maximumBeadCount}）`;
   elements.countStatus.classList.toggle("is-ready", !summary.isInsufficient);
   elements.countStatus.classList.toggle("is-limit", isAtMaximum);
+  elements.wristStatus.textContent = wristCm > 0 ? `手围: ${wristCm.toFixed(1)}cm` : "手围: --";
+  elements.wristStatus.classList.toggle("is-ready", wristCm > 0);
   elements.priceStatus.textContent = `总价格: ${formatPrice(summary.totalCents)}`;
   elements.clearButton.disabled = summary.count === 0;
 }
@@ -829,14 +872,14 @@ function drawPreviewCordSegment(context, segment) {
   context.lineWidth = segment.lineWidth + 2.2;
   context.beginPath();
   context.moveTo(segment.x1, segment.y1 + 1.4);
-  context.lineTo(segment.x2, segment.y2 + 1.4);
+  context.quadraticCurveTo(segment.cx, segment.cy + 1.4, segment.x2, segment.y2 + 1.4);
   context.stroke();
 
   context.strokeStyle = segment.color;
   context.lineWidth = segment.lineWidth;
   context.beginPath();
   context.moveTo(segment.x1, segment.y1);
-  context.lineTo(segment.x2, segment.y2);
+  context.quadraticCurveTo(segment.cx, segment.cy, segment.x2, segment.y2);
   context.stroke();
 
   context.strokeStyle = segment.fiberColor;
@@ -844,7 +887,7 @@ function drawPreviewCordSegment(context, segment) {
   context.setLineDash([3.2, 3.8]);
   context.beginPath();
   context.moveTo(segment.x1, segment.y1 - segment.lineWidth * 0.25);
-  context.lineTo(segment.x2, segment.y2 - segment.lineWidth * 0.25);
+  context.quadraticCurveTo(segment.cx, segment.cy - segment.lineWidth * 0.25, segment.x2, segment.y2 - segment.lineWidth * 0.25);
   context.stroke();
   context.restore();
 }
@@ -929,9 +972,20 @@ function closeModalDialog(dialog, afterClose = null) {
   }, { once: true });
 }
 
+// 控制 3D 展示的轻量 loading 层，避免 canvas 首帧绘制阻塞弹窗入场动画。
+function showInspectorLoading(elements, isLoading) {
+  elements.inspectorStage.classList.toggle("is-loading", isLoading);
+  elements.inspectorLoading.hidden = false;
+  if (!isLoading) {
+    window.setTimeout(() => {
+      elements.inspectorLoading.hidden = true;
+    }, 170);
+  }
+}
+
 // 在弹层中展示整条手链，并支持拖入商品形成临时预览。
 function openBraceletInspector(elements, items, label = "整条手链") {
-  renderInspectorBracelet(elements, items);
+  showInspectorLoading(elements, true);
   const summary = calculateSummary(items, RULES.minimumBeadCount);
   warnAndReturn(summary.error);
   elements.inspectorName.textContent = label;
@@ -941,6 +995,10 @@ function openBraceletInspector(elements, items, label = "整条手链") {
   if (!elements.inspector.open) {
     openModalDialog(elements.inspector);
   }
+  window.requestAnimationFrame(() => {
+    renderInspectorBracelet(elements, items);
+    showInspectorLoading(elements, false);
+  });
 }
 
 // 渲染确认订单弹窗内容，所有字段都用 textContent 写入以避免 HTML 注入。
@@ -986,8 +1044,11 @@ function renderOrderSummary(elements, summary) {
 function renderBracelet(elements, state) {
   const stageWidth = elements.stage.clientWidth || 1000;
   const stageHeight = elements.stage.clientHeight || 600;
+  const hasBeads = state.items.length > 0;
   const track = calculateBraceletTrackFrame(state.items, stageWidth, stageHeight);
   warnAndReturn(track.error);
+  elements.stage.classList.toggle("has-beads", hasBeads);
+  elements.track.classList.toggle("has-beads", hasBeads);
   elements.trackCircles.forEach((trackCircle) => trackCircle.setAttribute("r", `${track.viewBoxRadius}`));
   const layout = calculateBeadPositions(state.items, stageWidth, stageHeight);
   warnAndReturn(layout.error);
@@ -1047,7 +1108,9 @@ function initializeApp() {
     inspectorCanvas: document.querySelector("#inspector-canvas"),
     inspectorCheckoutButton: document.querySelector("#inspector-checkout-button"),
     inspectorDetail: document.querySelector("#inspector-detail"),
+    inspectorLoading: document.querySelector("#inspector-loading"),
     inspectorName: document.querySelector("#inspector-name"),
+    inspectorStage: document.querySelector(".inspector-stage"),
     noticeButton: document.querySelector("#notice-button"),
     noResults: document.querySelector("#no-results"),
     orderConfirmButton: document.querySelector("#order-confirm-button"),
@@ -1058,10 +1121,13 @@ function initializeApp() {
     productGrid: document.querySelector("#product-grid"),
     searchInput: document.querySelector("#search-input"),
     selectedItems: document.querySelector("#selected-items"),
+    soundButton: document.querySelector("#sound-button"),
     stage: document.querySelector("#bracelet-stage"),
+    track: document.querySelector(".bracelet-track"),
     trackCircle: document.querySelector("#bracelet-track-circle"),
     trackCircles: [...document.querySelectorAll(".rope-circle")],
     usageDialog: document.querySelector("#usage-dialog"),
+    wristStatus: document.querySelector("#wrist-status"),
   };
 
   if (Object.values(elements).some((element) => (Array.isArray(element) ? element.length === 0 : !element))) {
@@ -1079,7 +1145,48 @@ function initializeApp() {
   let itemDragSession = null;
   let longPressTimer = null;
   let longPressConsumed = false;
+  let soundContext = null;
+  let soundMuted = false;
   let suppressProductClick = false;
+
+  // 用 WebAudio 生成短促、低音量的反馈音，不依赖外部音频文件。
+  function playInteractionSound(kind) {
+    const plan = createInteractionSoundPlan(kind, { muted: soundMuted });
+    if (plan.muted || plan.frequencies.length === 0) {
+      return;
+    }
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      return;
+    }
+
+    soundContext ??= new AudioContextClass();
+    const startAt = soundContext.currentTime;
+    plan.frequencies.forEach((frequency, index) => {
+      const oscillator = soundContext.createOscillator();
+      const gain = soundContext.createGain();
+      oscillator.type = index === 0 ? "sine" : "triangle";
+      oscillator.frequency.setValueAtTime(frequency, startAt + index * 0.035);
+      gain.gain.setValueAtTime(0.0001, startAt + index * 0.035);
+      gain.gain.exponentialRampToValueAtTime(plan.gain, startAt + index * 0.035 + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + plan.durationMs / 1000);
+      oscillator.connect(gain).connect(soundContext.destination);
+      oscillator.start(startAt + index * 0.035);
+      oscillator.stop(startAt + plan.durationMs / 1000 + 0.02);
+    });
+  }
+
+  // 切换音效开关，并保持按钮语义与视觉状态同步。
+  function toggleSound() {
+    soundMuted = !soundMuted;
+    elements.soundButton.classList.toggle("is-muted", soundMuted);
+    elements.soundButton.setAttribute("aria-pressed", String(!soundMuted));
+    elements.soundButton.textContent = soundMuted ? "♪ 静音" : "♪ 音效";
+    if (!soundMuted) {
+      playInteractionSound("modal");
+    }
+  }
 
   // 向用户显示短时编辑提示，不改变手链业务状态。
   function notify(message) {
@@ -1109,6 +1216,18 @@ function initializeApp() {
     notify(error.message);
   }
 
+  // 播放视频模板里的商品卡按压涟漪，给用户明确的“从这里装珠”反馈。
+  function playProductPlacementFeedback(productButton) {
+    if (!productButton) {
+      return;
+    }
+
+    productButton.classList.remove("is-placing");
+    void productButton.offsetWidth;
+    productButton.classList.add("is-placing");
+    window.setTimeout(() => productButton.classList.remove("is-placing"), 620);
+  }
+
   // 创建一颗临时飞行珠子，让点击添加时有“放到绳子上”的连续过渡。
   function playBeadPlacementAnimation(product, sourceRect, targetButton) {
     const targetRect = targetButton?.getBoundingClientRect();
@@ -1134,6 +1253,7 @@ function initializeApp() {
       bead.classList.add("has-photo");
     }
     document.body.append(bead);
+    playInteractionSound("add");
     bead.addEventListener("animationend", () => bead.remove(), { once: true });
   }
 
@@ -1161,6 +1281,7 @@ function initializeApp() {
       state = render(elements, state);
       clearTimer = null;
       notify("已清空手链");
+      playInteractionSound("clear");
     }, 430);
   }
 
@@ -1176,9 +1297,11 @@ function initializeApp() {
     renderOrderSummary(elements, summary);
     if (elements.inspector.open) {
       closeModalDialog(elements.inspector, () => openModalDialog(elements.orderDialog));
+      playInteractionSound("modal");
       return;
     }
     openModalDialog(elements.orderDialog);
+    playInteractionSound("modal");
   }
 
   // 停止 3D 手链动画，避免弹层关闭后继续占用渲染资源。
@@ -1213,6 +1336,7 @@ function initializeApp() {
     inspectorItems = [...items];
     openBraceletInspector(elements, inspectorItems, label);
     stopInspectorAnimation();
+    playInteractionSound("modal");
     inspectorAnimationId = window.requestAnimationFrame(animateInspector);
   }
 
@@ -1296,6 +1420,8 @@ function initializeApp() {
     state = result.state;
     state = render(elements, state);
     if (!result.error && addedItemId) {
+      const refreshedProductButton = elements.productGrid.querySelector(`button[data-product-id="${product.id}"]`);
+      playProductPlacementFeedback(refreshedProductButton);
       playBeadPlacementAnimation(product, sourceRect, elements.selectedItems.querySelector(`button[data-item-id="${addedItemId}"]`));
     }
   });
@@ -1381,6 +1507,8 @@ function initializeApp() {
             dragSession.sourceRect,
             elements.selectedItems.querySelector(`button[data-item-id="${addedItemId}"]`),
           );
+        } else if (target.type === "item") {
+          playInteractionSound("roll");
         }
         notify(target.type === "item" ? "已替换珠子" : "已添加珠子");
       }
@@ -1416,6 +1544,7 @@ function initializeApp() {
     state = result.state;
     state = render(elements, state);
     if (!result.error && item) {
+      playInteractionSound("roll");
       notify("已选中，点 3D 展示查看整条手链");
     }
   });
@@ -1451,6 +1580,7 @@ function initializeApp() {
       state = render(elements, state);
       longPressConsumed = true;
       notify("已删除珠子");
+      playInteractionSound("clear");
       longPressTimer = null;
     }, 560);
   });
@@ -1537,6 +1667,8 @@ function initializeApp() {
     showBraceletInspector(preview.items);
   });
 
+  elements.soundButton.addEventListener("click", toggleSound);
+
   elements.checkoutButton.addEventListener("click", () => showOrderDialog(state.items));
 
   elements.inspectorCheckoutButton.addEventListener("click", () => showOrderDialog(inspectorItems));
@@ -1570,6 +1702,7 @@ function initializeApp() {
 
   elements.noticeButton.addEventListener("click", () => {
     openModalDialog(elements.usageDialog);
+    playInteractionSound("modal");
   });
 
   elements.usageDialog.addEventListener("click", (event) => {

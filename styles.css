@@ -35,7 +35,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto minmax(250px, 1fr) auto minmax(286px, 38dvh);
   min-height: 100dvh;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-top: env(safe-area-inset-top);
   background:
     radial-gradient(circle at 50% -10%, rgb(245 222 204 / 62%), transparent 38%),
@@ -45,7 +46,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 .topbar {
   grid-area: topbar;
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: 44px 1fr;
   align-items: center;
   min-height: 60px;
   padding: 10px 14px 0;
@@ -61,7 +62,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   text-align: center;
 }
 
-.icon-button, .round-action {
+.icon-button {
   display: grid;
   place-items: center;
   border: 0;
@@ -80,25 +81,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 }
 
 .icon-button:hover, .icon-button:active { background: rgb(69 61 56 / 7%); transform: translateX(-2px); }
-
-.topbar-actions {
-  display: flex;
-  overflow: hidden;
-  border: 1px solid rgb(86 75 67 / 12%);
-  border-radius: 16px;
-  background: rgb(255 255 255 / 76%);
-  box-shadow: 0 5px 16px rgb(83 65 54 / 8%);
-}
-
-.round-action {
-  width: 31px;
-  height: 30px;
-  border-left: 1px solid rgb(86 75 67 / 10%);
-  font-size: 15px;
-}
-
-.round-action:first-child { border-left: 0; font-size: 13px; letter-spacing: 1px; }
-.round-action:hover { background: rgb(157 96 69 / 9%); }
 
 .status-row {
   grid-area: status;
@@ -126,6 +108,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 .status-pill { color: #817a75; background: rgb(255 255 255 / 72%); box-shadow: 0 5px 12px rgb(63 51 43 / 6%); }
 .status-pill.is-ready { color: #3a7757; background: #e9f5ed; }
 .status-pill.is-limit { color: #a34732; background: #fff0ea; }
+.sound-button { color: #6f5144; transition: color 180ms ease, background-color 180ms ease, transform 180ms ease; }
+.sound-button:hover { transform: translateY(-1px); }
+.sound-button.is-muted { color: #9a928d; background: rgb(241 237 232 / 78%); box-shadow: inset 0 1px 3px rgb(60 45 34 / 8%); }
 
 .bracelet-stage {
   position: relative;
@@ -142,6 +127,11 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   border-radius: 50%;
   background: radial-gradient(ellipse, rgb(254 249 243 / 92%) 0%, rgb(249 239 229 / 37%) 46%, transparent 74%);
   content: "";
+}
+
+.bracelet-stage.has-beads::before {
+  animation: stage-breathe 5.8s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .bracelet-stage::after {
@@ -166,6 +156,12 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   width: 100%;
   height: 100%;
   overflow: visible;
+}
+
+.bracelet-track.has-beads {
+  animation: bracelet-float 7.2s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
 }
 
 .bracelet-track .rope-circle {
@@ -253,7 +249,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 
 .selected-bead:hover { box-shadow: 0 11px 19px rgb(67 52 43 / 21%), inset 0 1px 1px #fff; transform: translate(-50%, -50%) scale(1.08); }
 .selected-bead:active { transform: translate(-50%, -50%) scale(.92); }
-.selected-bead.is-entering { animation: bead-enter 460ms cubic-bezier(.16, 1, .3, 1) both; }
+.selected-bead.is-entering { animation: bead-enter 560ms cubic-bezier(.16, 1.08, .24, 1) both; }
 .selected-bead.is-rolling { animation: bead-roll 720ms cubic-bezier(.22, .84, .27, 1) both; }
 .selected-bead.is-rolling .selected-bead-core { animation: core-roll 720ms linear both; }
 .selected-bead.is-selected { box-shadow: 0 0 0 4px rgb(189 113 82 / 18%), 0 12px 22px rgb(83 54 42 / 18%), inset 0 1px 1px #fff; }
@@ -358,6 +354,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 
 .picker {
   grid-area: picker;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 286px;
   overflow: hidden;
   border: 1px solid rgb(104 87 75 / 10%);
@@ -375,7 +373,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 .search-field input::placeholder { color: #aeaaa7; }
 .search-field input:focus { outline: 0; }
 
-.picker-content { display: grid; grid-template-columns: 74px 1fr; min-height: calc(100% - 48px); }
+.picker-content { display: grid; grid-template-columns: 74px 1fr; min-height: 0; }
 .category-list { overflow-y: auto; padding: 8px 0; border-right: 1px solid rgb(96 81 69 / 6%); background: #fbf9f7; }
 
 .category-button {
@@ -395,13 +393,21 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 .category-button.is-active::before { background: #bd7152; }
 .category-button:hover { color: #5b4438; }
 
+.category-list,
+.catalog-panel {
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
 .catalog-panel { min-width: 0; overflow-y: auto; padding: 10px; }
 .product-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
 
 .product-card {
+  position: relative;
   display: grid;
   min-width: 0;
   min-height: 112px;
+  overflow: hidden;
   place-items: center;
   align-content: center;
   gap: 6px;
@@ -412,6 +418,25 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   background: linear-gradient(145deg, #fff, #fcfaf8);
   box-shadow: 0 6px 14px rgb(63 51 43 / 6%);
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.product-card::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  background: rgb(80 80 80 / 18%);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(.28);
+  will-change: transform, opacity;
+}
+
+.product-card.is-placing::after {
+  animation: product-place-ripple 560ms cubic-bezier(.16, 1, .3, 1) both;
 }
 
 .product-card:hover { border-color: rgb(164 96 69 / 32%); box-shadow: 0 10px 18px rgb(63 51 43 / 11%); transform: translateY(-3px); }
@@ -450,7 +475,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   box-shadow: 0 14px 26px rgb(72 52 39 / 22%), inset 4px 4px 7px rgb(255 255 255 / 64%), inset -7px -9px 13px rgb(48 38 32 / 22%);
   pointer-events: none;
   transform: translate(calc(var(--flight-start-x) - 50%), calc(var(--flight-start-y) - 50%)) scale(.84);
-  animation: bead-flight var(--flight-duration, 920ms) var(--flight-easing, cubic-bezier(.18, .82, .18, 1)) both;
+  animation: bead-flight var(--flight-duration, 980ms) var(--flight-easing, cubic-bezier(.16, 1.08, .24, 1)) both;
   contain: layout paint;
   will-change: transform, opacity;
 }
@@ -465,7 +490,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   box-shadow: 0 24px 70px rgb(38 27 21 / 35%);
 }
 
-.bead-inspector::backdrop { background: rgb(48 38 32 / 43%); backdrop-filter: blur(6px); }
+.bead-inspector::backdrop { background: rgb(48 38 32 / 43%); }
 .bead-inspector[open], .order-dialog[open], .usage-dialog[open] {
   animation: modal-enter 240ms cubic-bezier(.2, .8, .2, 1) both;
   will-change: transform, opacity;
@@ -530,10 +555,42 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   contain: layout paint;
 }
 
+.inspector-loading {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  color: #8d715f;
+  font-size: 12px;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, 6px, 0);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.inspector-stage.is-loading .inspector-loading {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.inspector-stage.is-loading .inspector-canvas { opacity: .16; }
+
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgb(141 113 95 / 18%);
+  border-top-color: rgb(141 91 70 / 78%);
+  border-radius: 50%;
+  animation: loading-spin 720ms linear infinite;
+}
+
 .inspector-canvas {
   width: 100%;
   height: 100%;
   border-radius: inherit;
+  transition: opacity 150ms ease;
 }
 
 .inspector-card h2 { margin: 0; font-family: Georgia, "Songti SC", serif; font-size: 22px; }
@@ -551,6 +608,14 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 }
 
 .inspector-card .order-primary { margin: 2px 0 0; }
+.inspector-actions { display: flex; justify-content: center; gap: 9px; margin: 2px 0 0; }
+.inspector-actions .outline-button { padding: 8px 14px; }
+.inspector-actions .outline-button.is-active {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #5d463c, #9f6c55);
+  box-shadow: 0 8px 16px rgb(91 62 48 / 17%);
+}
 
 .order-dialog {
   width: min(88vw, 350px);
@@ -562,7 +627,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   box-shadow: 0 24px 70px rgb(38 27 21 / 32%);
 }
 
-.order-dialog::backdrop { background: rgb(48 38 32 / 40%); backdrop-filter: blur(5px); }
+.order-dialog::backdrop { background: rgb(48 38 32 / 40%); }
 
 .order-card {
   position: relative;
@@ -631,7 +696,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   box-shadow: 0 24px 70px rgb(38 27 21 / 30%);
 }
 
-.usage-dialog::backdrop { background: rgb(48 38 32 / 38%); backdrop-filter: blur(5px); }
+.usage-dialog::backdrop { background: rgb(48 38 32 / 38%); }
 
 .usage-card {
   position: relative;
@@ -669,16 +734,26 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 @keyframes bead-flight {
   0% {
     opacity: .1;
-    transform: translate(calc(var(--flight-start-x) - 50%), calc(var(--flight-start-y) - 50%)) scale(.72) rotate(-18deg);
+    transform: translate(calc(var(--flight-start-x) - 50%), calc(var(--flight-start-y) - 50%)) scale(.68) rotate(-18deg);
   }
-  58% {
+  18% {
     opacity: 1;
-    transform: translate(calc(var(--flight-arc-x) - 50%), calc(var(--flight-arc-y) - 50%)) scale(1.08) rotate(14deg);
+    transform: translate(calc(var(--flight-start-x) - 50%), calc(var(--flight-start-y) - 50%)) scale(1.24) rotate(-8deg);
+  }
+  62% {
+    opacity: 1;
+    transform: translate(calc(var(--flight-arc-x) - 50%), calc(var(--flight-arc-y) - 50%)) scale(1.06) rotate(14deg);
   }
   100% {
     opacity: 0;
     transform: translate(calc(var(--flight-end-x) - 50%), calc(var(--flight-end-y) - 50%)) scale(.9) rotate(0deg);
   }
+}
+
+@keyframes product-place-ripple {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.24); }
+  28% { opacity: 1; transform: translate(-50%, -50%) scale(.86); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.26); }
 }
 
 @keyframes bead-clear {
@@ -690,6 +765,16 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 @keyframes track-reveal {
   from { opacity: 0; stroke-dashoffset: 120; transform: scale(.96); transform-origin: center; }
   to { opacity: 1; stroke-dashoffset: 0; transform: scale(1); transform-origin: center; }
+}
+
+@keyframes stage-breathe {
+  0%, 100% { opacity: .92; transform: scale(.985); }
+  50% { opacity: 1; transform: scale(1.035); }
+}
+
+@keyframes bracelet-float {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(.15deg); }
+  50% { transform: translate3d(0, -4px, 0) rotate(-.2deg); }
 }
 
 @keyframes bead-roll {
@@ -723,6 +808,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
 @keyframes modal-card-exit {
   from { opacity: 1; transform: translateY(0) scale(1); }
   to { opacity: .72; transform: translateY(8px) scale(.985); }
+}
+
+@keyframes loading-spin {
+  to { transform: rotate(360deg); }
 }
 
 
@@ -773,7 +862,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #a46045; outline-
   }
 
   .status-row {
-    justify-content: flex-end;
+    justify-content: flex-start;
     align-self: start;
     padding: 22px 0 12px;
   }
