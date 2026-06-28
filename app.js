@@ -233,9 +233,9 @@ export function estimateBraceletWristCm(items) {
 // 顶视图绳圈半径随珠子数量缓慢放大，避免达标时突兀跳变。
 function calculateBraceletRadiusScale(items) {
   const count = Array.isArray(items) ? items.length : 0;
-  const progress = Math.max(0, Math.min(1, (count - 12) / 8)) ** 1.3;
+  const progress = Math.max(0, Math.min(1, count / 20));
 
-  return 0.32 + progress * 0.07;
+  return 0.28 + progress * 0.11;
 }
 
 // 计算 SVG 绳圈的真实像素半径和 viewBox 半径，供绳子和珠子共用。
@@ -268,24 +268,26 @@ export function calculateBeadPositions(items, width, height) {
   const centerY = height / 2;
   const trackFrame = calculateBraceletTrackFrame(items, width, height);
   const radius = trackFrame.radiusPx;
-  // 大屏预览需要更接近实物珠串密度；手机端保持原尺寸避免挤占触控空间。
-  const beadScale = Math.max(1, Math.min(1.5, Math.min(width, height) / 420));
-  const denseProgress = Math.max(0, Math.min(1, (items.length - 10) / 6));
-  const baseMinimumBeadSize = beadScale > 1.2 ? 46 : 28;
-  const denseMinimumBeadSize = beadScale > 1.2 ? 94 : 58;
-  const baseMaximumBeadSize = 64;
-  const denseMaximumBeadSize = items.length >= 16 ? 100 : 64;
-  const minimumBeadSize = baseMinimumBeadSize + (denseMinimumBeadSize - baseMinimumBeadSize) * denseProgress;
-  const maximumBeadSize = baseMaximumBeadSize + (denseMaximumBeadSize - baseMaximumBeadSize) * denseProgress;
+  const beadScale = Math.max(0.92, Math.min(1.38, Math.min(width, height) / 390));
+  const chordDistance = items.length > 1 ? 2 * radius * Math.sin(Math.PI / items.length) : radius * 0.5;
+  const maximumBeadSize = Math.max(22, chordDistance * 0.98);
+  const denseProgress = Math.max(0, Math.min(1, (items.length - 8) / 12));
+  const sparseMinimumBeadSize = 24 * beadScale;
+  const denseMinimumBeadSize = maximumBeadSize * 0.9;
+  const minimumBeadSize = Math.min(
+    maximumBeadSize,
+    sparseMinimumBeadSize + (denseMinimumBeadSize - sparseMinimumBeadSize) * denseProgress,
+  );
 
   const positions = items.map((item, index) => {
     const angle = -Math.PI / 2 + (index / items.length) * Math.PI * 2;
+    const naturalSize = item.diameterMm * 3.5 * beadScale;
 
     return {
       id: item.id,
       x: centerX + Math.cos(angle) * radius,
       y: centerY + Math.sin(angle) * radius,
-      size: Math.max(minimumBeadSize, Math.min(maximumBeadSize, item.diameterMm * 4 * beadScale)),
+      size: Math.max(minimumBeadSize, Math.min(maximumBeadSize, naturalSize)),
     };
   });
 
