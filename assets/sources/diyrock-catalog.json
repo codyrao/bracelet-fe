@@ -1,0 +1,31 @@
+{
+  "source": "https://github.com/air158/DIYrock",
+  "license": "MIT",
+  "catalogPath": "web/src/data/catalog.ts",
+  "generatedAssets": [
+    "diyrock-white-8.png",
+    "diyrock-white-10.png",
+    "diyrock-white-12.png",
+    "diyrock-amethyst-8.png",
+    "diyrock-amethyst-10.png",
+    "diyrock-amethyst-12.png",
+    "diyrock-citrine-8.png",
+    "diyrock-citrine-10.png",
+    "diyrock-citrine-12.png",
+    "diyrock-rose-8.png",
+    "diyrock-rose-10.png",
+    "diyrock-rose-12.png",
+    "diyrock-green-8.png",
+    "diyrock-green-10.png",
+    "diyrock-green-12.png",
+    "diyrock-obsidian-8.png",
+    "diyrock-obsidian-10.png",
+    "diyrock-obsidian-12.png",
+    "diyrock-spacer-silver-3.png",
+    "diyrock-spacer-gold-3.png",
+    "diyrock-divider-silver-5.png",
+    "diyrock-divider-gold-5.png",
+    "diyrock-flower-silver-7.png",
+    "diyrock-flower-gold-7.png"
+  ]
+}

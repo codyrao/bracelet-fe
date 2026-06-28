@@ -15,6 +15,7 @@ function isValidProduct(product) {
 // 创建页面首次加载时使用的可编辑手链状态。
 export function createInitialState() {
   return {
+    enteringItemIds: [],
     items: [],
     lastAddedItemId: null,
     nextItemNumber: 1,
@@ -137,7 +138,7 @@ export function createClearedBraceletState(state) {
     return createInitialState();
   }
 
-  return { ...state, items: [], lastAddedItemId: null, rollingItemId: null, selectedItemId: null };
+  return { ...state, enteringItemIds: [], items: [], lastAddedItemId: null, rollingItemId: null, selectedItemId: null };
 }
 
 // 标记一颗珠子播放滚动动效，不改变手链中的珠子数量和顺序。
@@ -229,10 +230,12 @@ export function estimateBraceletWristCm(items) {
   return Math.round(((beadDiameterMm + cordAllowanceMm) / 10) * 10) / 10;
 }
 
-// 根据珠子数量计算顶视图绳圈缩放比例，保证满珠时珠子和绳圈同步收紧。
+// 顶视图绳圈半径随珠子数量缓慢放大，避免达标时突兀跳变。
 function calculateBraceletRadiusScale(items) {
-  const denseCountOffset = Math.max(0, Array.isArray(items) ? items.length - 16 : 0);
-  return Math.max(0.27, 0.32 - denseCountOffset * 0.0125);
+  const count = Array.isArray(items) ? items.length : 0;
+  const progress = Math.max(0, Math.min(1, (count - 12) / 8)) ** 1.3;
+
+  return 0.32 + progress * 0.07;
 }
 
 // 计算 SVG 绳圈的真实像素半径和 viewBox 半径，供绳子和珠子共用。
@@ -261,26 +264,28 @@ export function calculateBeadPositions(items, width, height) {
     return { positions: [], error: new Error("已选珠子信息不完整，无法生成预览。") };
   }
 
-  const totalWeight = items.reduce((total, item) => total + item.diameterMm + 4, 0);
-  let consumedWeight = 0;
   const centerX = width / 2;
   const centerY = height / 2;
   const trackFrame = calculateBraceletTrackFrame(items, width, height);
   const radius = trackFrame.radiusPx;
   // 大屏预览需要更接近实物珠串密度；手机端保持原尺寸避免挤占触控空间。
   const beadScale = Math.max(1, Math.min(1.5, Math.min(width, height) / 420));
-  const minimumBeadSize = beadScale > 1.2 ? 46 : 28;
+  const denseProgress = Math.max(0, Math.min(1, (items.length - 10) / 6));
+  const baseMinimumBeadSize = beadScale > 1.2 ? 46 : 28;
+  const denseMinimumBeadSize = beadScale > 1.2 ? 94 : 58;
+  const baseMaximumBeadSize = 64;
+  const denseMaximumBeadSize = items.length >= 16 ? 100 : 64;
+  const minimumBeadSize = baseMinimumBeadSize + (denseMinimumBeadSize - baseMinimumBeadSize) * denseProgress;
+  const maximumBeadSize = baseMaximumBeadSize + (denseMaximumBeadSize - baseMaximumBeadSize) * denseProgress;
 
-  const positions = items.map((item) => {
-    const weight = item.diameterMm + 4;
-    const angle = -Math.PI / 2 + ((consumedWeight + weight / 2) / totalWeight) * Math.PI * 2;
-    consumedWeight += weight;
+  const positions = items.map((item, index) => {
+    const angle = -Math.PI / 2 + (index / items.length) * Math.PI * 2;
 
     return {
       id: item.id,
       x: centerX + Math.cos(angle) * radius,
       y: centerY + Math.sin(angle) * radius,
-      size: Math.max(minimumBeadSize, Math.min(64, item.diameterMm * 4 * beadScale)),
+      size: Math.max(minimumBeadSize, Math.min(maximumBeadSize, item.diameterMm * 4 * beadScale)),
     };
   });
 
@@ -311,11 +316,14 @@ export function calculateBracelet3DScene(items, width = 320, height = 240, rotat
   const centerX = width / 2;
   const centerY = height * 0.5;
   const denseCountOffset = Math.max(0, items.length - 16);
-  const ringRadiusScale = Math.max(0.3, 0.36 - denseCountOffset * 0.015);
+  // 满珠 3D 展示要让相邻珠子略微覆盖，避免底层串线从珠间露出来。
+  const ringRadiusScale = items.length >= 16
+    ? Math.max(0.22, 0.28 - denseCountOffset * 0.015)
+    : 0.36;
   const ringRadius = Math.min(width, height) * ringRadiusScale;
   const cameraDistance = Math.min(width, height) * 1.9;
   const orbitSlant = -0.44;
-  const viewRotation = 0.78 + Math.sin(rotation) * 0.35;
+  const viewRotation = 0.78 + Math.sin(rotation) * 0.24;
 
   // 把圆形手链先绕 Z 轴倾斜，再绕 Y 轴环绕，最后用透视相机投影到画布。
   function projectRingPoint(angle, radius = ringRadius) {
@@ -435,63 +443,286 @@ export function calculateBracelet3DScene(items, width = 320, height = 240, rotat
   return { axis: null, beads, cordSegments, error: null, orbitPath: [], wrist: null };
 }
 
-const SOURCE_OFFER_URL = "./assets/sources/O1CN01O2oXek1QAHMu4KEPK_!!2213808671935-0-cib.jpg";
+const SOURCE_OFFER_URL = "https://github.com/air158/DIYrock";
 
-// 商品库仅保留从真实商品图裁切出的本地单珠图，避免远程防盗链影响演示。
+// 商品库使用 DIYrock 的珠子目录生成本地图片，避免继续混入旧跑环/JD 素材。
 const PRODUCTS = [
-  { id: "black-hair-4", category: "quartz", name: "黑发晶", diameterMm: 4, priceCents: 300, tone: "black", imageUrl: "./assets/beads/bead-03.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "pearl-shell-4", category: "shell", name: "珍珠贝", diameterMm: 4, priceCents: 300, tone: "milk", imageUrl: "./assets/beads/bead-04.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "blue-moon-4", category: "moonstone", name: "蓝月光石", diameterMm: 4, priceCents: 400, tone: "clear", imageUrl: "./assets/beads/bead-06.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "rose-quartz-4", category: "quartz", name: "粉晶", diameterMm: 4, priceCents: 300, tone: "rose", imageUrl: "./assets/beads/bead-09.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "hetian-jade-4", category: "jade", name: "和田玉", diameterMm: 4, priceCents: 500, tone: "tea", imageUrl: "./assets/beads/bead-11.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "black-agate-4", category: "agate", name: "黑色条纹玛瑙", diameterMm: 4, priceCents: 400, tone: "black", imageUrl: "./assets/beads/bead-12.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "gray-moon-4", category: "moonstone", name: "灰月光石", diameterMm: 4, priceCents: 400, tone: "clear", imageUrl: "./assets/beads/bead-13.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "orange-moon-4", category: "moonstone", name: "橙月光石", diameterMm: 4, priceCents: 400, tone: "tea", imageUrl: "./assets/beads/bead-15.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "white-agate-4", category: "agate", name: "白玛瑙", diameterMm: 4, priceCents: 300, tone: "clear", imageUrl: "./assets/beads/bead-16.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "white-crystal-4", category: "quartz", name: "白水晶", diameterMm: 4, priceCents: 300, tone: "clear", imageUrl: "./assets/beads/bead-18.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "prehnite-4", category: "quartz", name: "葡萄石", diameterMm: 4, priceCents: 500, tone: "tea", imageUrl: "./assets/beads/bead-19.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "purple-phantom-4", category: "quartz", name: "紫幽灵", diameterMm: 4, priceCents: 500, tone: "rose", imageUrl: "./assets/beads/bead-20.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "citrine-4", category: "quartz", name: "黄水晶", diameterMm: 4, priceCents: 400, tone: "tea", imageUrl: "./assets/beads/bead-21.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "garnet-4", category: "color", name: "石榴石", diameterMm: 4, priceCents: 400, tone: "rose", imageUrl: "./assets/beads/bead-22.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "moss-agate-4", category: "agate", name: "冰种水草玛瑙", diameterMm: 4, priceCents: 500, tone: "clear", imageUrl: "./assets/beads/bead-24.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "blue-moon-5", category: "moonstone", name: "蓝月光石", diameterMm: 5, priceCents: 500, tone: "clear", imageUrl: "./assets/beads/bead-26.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "tea-crystal-4", category: "quartz", name: "茶水晶", diameterMm: 4, priceCents: 400, tone: "tea", imageUrl: "./assets/beads/bead-28.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "amethyst-4", category: "quartz", name: "紫水晶", diameterMm: 4, priceCents: 400, tone: "rose", imageUrl: "./assets/beads/bead-33.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "water-agate-4", category: "agate", name: "水草玛瑙", diameterMm: 4, priceCents: 500, tone: "clear", imageUrl: "./assets/beads/bead-35.png", sourceUrl: SOURCE_OFFER_URL },
-  { id: "red-garden-4", category: "color", name: "红胶花水晶", diameterMm: 4, priceCents: 500, tone: "tea", imageUrl: "./assets/beads/bead-37.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "white-8", category: "white", name: "白水晶", diameterMm: 8, priceCents: 1800, tone: "clear", imageUrl: "./assets/beads/diyrock-white-8.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "white-10", category: "white", name: "白水晶", diameterMm: 10, priceCents: 2800, tone: "clear", imageUrl: "./assets/beads/diyrock-white-10.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "white-12", category: "white", name: "白水晶", diameterMm: 12, priceCents: 3800, tone: "clear", imageUrl: "./assets/beads/diyrock-white-12.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "amethyst-8", category: "amethyst", name: "紫水晶", diameterMm: 8, priceCents: 1800, tone: "amethyst", imageUrl: "./assets/beads/diyrock-amethyst-8.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "amethyst-10", category: "amethyst", name: "紫水晶", diameterMm: 10, priceCents: 2800, tone: "amethyst", imageUrl: "./assets/beads/diyrock-amethyst-10.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "amethyst-12", category: "amethyst", name: "紫水晶", diameterMm: 12, priceCents: 3800, tone: "amethyst", imageUrl: "./assets/beads/diyrock-amethyst-12.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "citrine-8", category: "citrine", name: "黄水晶", diameterMm: 8, priceCents: 1800, tone: "citrine", imageUrl: "./assets/beads/diyrock-citrine-8.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "citrine-10", category: "citrine", name: "黄水晶", diameterMm: 10, priceCents: 2800, tone: "citrine", imageUrl: "./assets/beads/diyrock-citrine-10.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "citrine-12", category: "citrine", name: "黄水晶", diameterMm: 12, priceCents: 3800, tone: "citrine", imageUrl: "./assets/beads/diyrock-citrine-12.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "rose-8", category: "rose", name: "粉水晶", diameterMm: 8, priceCents: 1800, tone: "rose", imageUrl: "./assets/beads/diyrock-rose-8.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "rose-10", category: "rose", name: "粉水晶", diameterMm: 10, priceCents: 2800, tone: "rose", imageUrl: "./assets/beads/diyrock-rose-10.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "rose-12", category: "rose", name: "粉水晶", diameterMm: 12, priceCents: 3800, tone: "rose", imageUrl: "./assets/beads/diyrock-rose-12.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "green-8", category: "green", name: "绿幽灵", diameterMm: 8, priceCents: 1800, tone: "green", imageUrl: "./assets/beads/diyrock-green-8.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "green-10", category: "green", name: "绿幽灵", diameterMm: 10, priceCents: 2800, tone: "green", imageUrl: "./assets/beads/diyrock-green-10.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "green-12", category: "green", name: "绿幽灵", diameterMm: 12, priceCents: 3800, tone: "green", imageUrl: "./assets/beads/diyrock-green-12.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "obsidian-8", category: "obsidian", name: "黑曜石", diameterMm: 8, priceCents: 1800, tone: "black", imageUrl: "./assets/beads/diyrock-obsidian-8.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "obsidian-10", category: "obsidian", name: "黑曜石", diameterMm: 10, priceCents: 2800, tone: "black", imageUrl: "./assets/beads/diyrock-obsidian-10.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "obsidian-12", category: "obsidian", name: "黑曜石", diameterMm: 12, priceCents: 3800, tone: "black", imageUrl: "./assets/beads/diyrock-obsidian-12.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "spacer-silver-3", category: "spacer", name: "银隔片", diameterMm: 3, priceCents: 600, tone: "silver", imageUrl: "./assets/beads/diyrock-spacer-silver-3.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "spacer-gold-3", category: "spacer", name: "金隔片", diameterMm: 3, priceCents: 800, tone: "gold", imageUrl: "./assets/beads/diyrock-spacer-gold-3.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "divider-silver-5", category: "divider", name: "银隔珠", diameterMm: 5, priceCents: 1000, tone: "silver", imageUrl: "./assets/beads/diyrock-divider-silver-5.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "divider-gold-5", category: "divider", name: "金隔珠", diameterMm: 5, priceCents: 1200, tone: "gold", imageUrl: "./assets/beads/diyrock-divider-gold-5.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "flower-silver-7", category: "flower", name: "银花托", diameterMm: 7, priceCents: 1600, tone: "silver", imageUrl: "./assets/beads/diyrock-flower-silver-7.png", sourceUrl: SOURCE_OFFER_URL },
+  { id: "flower-gold-7", category: "flower", name: "金花托", diameterMm: 7, priceCents: 2000, tone: "gold", imageUrl: "./assets/beads/diyrock-flower-gold-7.png", sourceUrl: SOURCE_OFFER_URL },
 ];
+
+// 设计广场固定使用本地假数据，保证刷新后排序和测试结果稳定。
+export const DESIGN_PRESETS = [
+  { id: "moon-guard", group: "designer", title: "月影守望", author: "@LY", likes: 96380, desc: "白水晶与黑曜石交错，清透里带一点守护感。", productIds: ["white-10", "white-10", "obsidian-8", "white-8", "amethyst-8", "white-10", "divider-silver-5", "white-8", "obsidian-8", "white-10", "white-8", "amethyst-8", "white-10", "white-8", "divider-silver-5", "obsidian-8"] },
+  { id: "pink-mimi", group: "designer", title: "粉色迷嘟", author: "@-2enbor", likes: 88420, desc: "粉水晶叠白水晶，柔软、清甜，适合日常通勤。", productIds: ["rose-10", "white-8", "rose-8", "white-10", "spacer-gold-3", "rose-10", "white-8", "rose-8", "flower-gold-7", "white-10", "rose-8", "white-8", "rose-10", "spacer-gold-3", "white-8", "rose-8"] },
+  { id: "silver-tide", group: "designer", title: "银色潮汐", author: "@Pomelo.Y", likes: 76190, desc: "银隔珠点亮白水晶，干净、冷感、很显质感。", productIds: ["white-10", "divider-silver-5", "white-8", "spacer-silver-3", "white-10", "white-8", "divider-silver-5", "white-10", "spacer-silver-3", "white-8", "white-10", "divider-silver-5", "white-8", "spacer-silver-3", "white-10", "white-8"] },
+  { id: "citrine-sun", group: "designer", title: "日光橘子", author: "@Ari", likes: 59870, desc: "黄水晶像一圈小太阳，搭配白水晶更轻盈。", productIds: ["citrine-10", "white-8", "citrine-8", "white-10", "rose-8", "citrine-10", "white-8", "spacer-gold-3", "white-10", "citrine-8", "rose-8", "white-8", "citrine-10", "white-10", "spacer-gold-3", "white-8"] },
+  { id: "green-breath", group: "designer", title: "森林呼吸", author: "@Mori", likes: 43260, desc: "绿幽灵为主，像一枚安静但有生命力的护符。", productIds: ["green-10", "green-8", "white-8", "green-10", "spacer-gold-3", "green-8", "white-10", "green-10", "green-8", "divider-gold-5", "white-8", "green-10", "green-8", "white-8", "green-10", "spacer-gold-3"] },
+  { id: "purple-dream", group: "designer", title: "紫雾梦境", author: "@yarina", likes: 26740, desc: "紫水晶和粉水晶轻轻过渡，温柔但不甜腻。", productIds: ["amethyst-10", "rose-8", "white-8", "amethyst-8", "rose-10", "white-8", "amethyst-10", "spacer-silver-3", "rose-8", "white-10", "amethyst-8", "rose-8", "white-8", "flower-silver-7", "amethyst-10", "rose-8"] },
+  { id: "black-star", group: "designer", title: "黑星轨道", author: "@Noir", likes: 12480, desc: "黑曜石压住整体气场，银色隔片带来一点星轨感。", productIds: ["obsidian-10", "spacer-silver-3", "obsidian-8", "white-8", "obsidian-10", "divider-silver-5", "white-8", "obsidian-8", "spacer-silver-3", "obsidian-10", "white-8", "divider-silver-5", "obsidian-8", "white-8", "obsidian-10", "spacer-silver-3"] },
+  { id: "milk-cloud", group: "designer", title: "奶云小径", author: "@Mint", likes: 3860, desc: "大面积白水晶搭一颗金色点睛，清爽又耐看。", productIds: ["white-10", "white-8", "white-10", "white-8", "white-10", "spacer-gold-3", "white-8", "white-10", "citrine-8", "white-10", "white-8", "white-10", "spacer-gold-3", "white-8", "white-10", "white-8"] },
+  { id: "customer-amber-rain", group: "customer", title: "暖橘雨", author: "@南栀", likes: 97260, desc: "客订复刻款，黄水晶与粉晶错落，明亮但不抢眼。", productIds: ["citrine-10", "rose-8", "white-8", "citrine-8", "rose-10", "white-10", "spacer-gold-3", "citrine-10", "white-8", "rose-8", "citrine-8", "white-10", "rose-10", "spacer-gold-3", "white-8", "citrine-8"] },
+  { id: "customer-snow-bell", group: "customer", title: "雪铃", author: "@小满", likes: 84510, desc: "白水晶为主，银隔片像铃铛一样点亮整圈。", productIds: ["white-10", "spacer-silver-3", "white-8", "white-10", "divider-silver-5", "white-8", "white-10", "spacer-silver-3", "white-8", "white-10", "divider-silver-5", "white-8", "white-10", "white-8", "spacer-silver-3", "white-10"] },
+  { id: "customer-grape-soda", group: "customer", title: "葡萄汽水", author: "@Rita", likes: 73140, desc: "紫水晶和白水晶的清爽配色，适合夏天。", productIds: ["amethyst-10", "white-8", "amethyst-8", "white-10", "amethyst-10", "spacer-silver-3", "white-8", "amethyst-8", "white-10", "amethyst-10", "white-8", "divider-silver-5", "amethyst-8", "white-10", "amethyst-10", "white-8"] },
+  { id: "customer-matcha", group: "customer", title: "抹茶拿铁", author: "@木木", likes: 62890, desc: "绿幽灵搭配奶白色调，温柔又有一点森系。", productIds: ["green-10", "white-8", "green-8", "white-10", "green-10", "spacer-gold-3", "white-8", "green-8", "white-10", "green-10", "white-8", "divider-gold-5", "green-8", "white-10", "green-10", "white-8"] },
+  { id: "customer-night-salt", group: "customer", title: "夜盐", author: "@Clio", likes: 48670, desc: "黑曜石与白水晶对比更强，适合想要利落感的搭配。", productIds: ["obsidian-10", "white-8", "obsidian-8", "white-10", "spacer-silver-3", "obsidian-10", "white-8", "obsidian-8", "divider-silver-5", "white-10", "obsidian-8", "white-8", "obsidian-10", "white-10", "spacer-silver-3", "obsidian-8"] },
+  { id: "customer-peach-milk", group: "customer", title: "桃子牛奶", author: "@七月", likes: 35320, desc: "粉水晶和白水晶均匀排布，软糯日常。", productIds: ["rose-10", "white-10", "rose-8", "white-8", "rose-10", "white-10", "rose-8", "white-8", "spacer-gold-3", "rose-10", "white-10", "rose-8", "white-8", "rose-10", "white-10", "rose-8"] },
+  { id: "customer-gold-dot", group: "customer", title: "一颗金豆", author: "@晴子", likes: 21980, desc: "白水晶中加入少量金色配件，低调但有记忆点。", productIds: ["white-10", "white-8", "white-10", "spacer-gold-3", "white-8", "white-10", "white-8", "divider-gold-5", "white-10", "white-8", "white-10", "spacer-gold-3", "white-8", "white-10", "white-8", "citrine-8"] },
+  { id: "customer-soft-star", group: "customer", title: "软星星", author: "@Nana", likes: 10240, desc: "粉晶、紫晶和银色花托组成的轻甜客订款。", productIds: ["rose-8", "amethyst-8", "white-8", "rose-10", "flower-silver-7", "amethyst-10", "white-8", "rose-8", "spacer-silver-3", "amethyst-8", "rose-10", "white-10", "flower-silver-7", "rose-8", "amethyst-8", "white-8"] },
+];
+
+export const SAVED_DESIGNS_STORAGE_KEY = "bracelet-fe.saved-designs";
+const SAVED_DESIGN_LIMIT = 20;
+
+// 获取按热度降序排列的设计，避免渲染层重复排序。
+export function getSortedDesignPresets(group = "designer") {
+  const designs = group === "all"
+    ? DESIGN_PRESETS
+    : DESIGN_PRESETS.filter((design) => design.group === group);
+
+  return [...designs].sort((left, right) => right.likes - left.likes);
+}
+
+// 生成设计广场顶部统计文案，内置案例与本地设计共用同一口径。
+export function createDesignGalleryStats(savedDesigns = []) {
+  const designerCount = DESIGN_PRESETS.filter((design) => design.group === "designer").length;
+  const customerCount = DESIGN_PRESETS.filter((design) => design.group === "customer").length;
+  const savedCount = Array.isArray(savedDesigns) ? savedDesigns.length : 0;
+
+  return `设计广场统计：设计师款 ${designerCount} · 优秀客订 ${customerCount} · 我的设计 ${savedCount}/${SAVED_DESIGN_LIMIT}`;
+}
+
+// 将设计里的商品 id 列表复制为 DIY 手链状态，供广场二次设计和本地修改复用。
+export function createBraceletStateFromDesign(design, options = {}) {
+  if (!design) {
+    return { design: null, error: new Error("没有找到这个设计。"), state: createInitialState() };
+  }
+
+  const designProducts = design.productIds
+    .map((productId) => PRODUCTS.find((product) => product.id === productId))
+    .filter(isValidProduct);
+  if (designProducts.length === 0) {
+    return { design, error: new Error("这个设计暂时没有可用珠子。"), state: createInitialState() };
+  }
+  const products = design.group === "saved"
+    ? designProducts
+    : Array.from(
+      { length: RULES.maximumBeadCount },
+      (_, index) => designProducts[index % designProducts.length],
+    );
+
+  const items = products.map((product, index) => ({
+    diameterMm: product.diameterMm,
+    id: `bead-${index + 1}`,
+    name: product.name,
+    priceCents: product.priceCents,
+    productId: product.id,
+  }));
+
+  return {
+    design,
+    error: null,
+    state: {
+      ...createInitialState(),
+      enteringItemIds: options.animate ? items.map((item) => item.id) : [],
+      items,
+      lastAddedItemId: options.animate ? null : items.at(-1)?.id ?? null,
+      nextItemNumber: items.length + 1,
+      selectedItemId: items.at(-1)?.id ?? null,
+    },
+  };
+}
+
+// 将设计广场的商品 id 列表复制为 DIY 手链状态，供购买和二次设计复用。
+export function createBraceletStateFromDesignPreset(designId, options = {}) {
+  return createBraceletStateFromDesign(DESIGN_PRESETS.find((candidate) => candidate.id === designId), options);
+}
+
+// 直接购买复用订单摘要能力，保证广场设计和 DIY 订单口径一致。
+export function createDesignOrderSummary(designId) {
+  const result = createBraceletStateFromDesignPreset(designId);
+  if (result.error) {
+    return { count: 0, error: result.error, lines: [], preview: { beads: [], height: 170, width: 260 }, totalCents: 0 };
+  }
+
+  return createOrderSummary(result.state.items);
+}
 
 // 集中保存演示原型的可调整业务规则。
 const RULES = {
   maximumBeadCount: 20,
   minimumBeadCount: 20,
+  stringCoveredBeadCount: 16,
 };
+
+// 判断本地保存的设计是否具备恢复 DIY 状态所需的最小字段。
+function isValidSavedDesign(design) {
+  return Boolean(
+    design &&
+      design.group === "saved" &&
+      typeof design.id === "string" &&
+      typeof design.title === "string" &&
+      Array.isArray(design.productIds) &&
+      design.productIds.length > 0,
+  );
+}
+
+// 将保存时间格式化为本地用户可读的短标签。
+function formatSavedDesignTime(date) {
+  const safeDate = date instanceof Date && Number.isFinite(date.getTime()) ? date : new Date();
+  const month = String(safeDate.getMonth() + 1).padStart(2, "0");
+  const day = String(safeDate.getDate()).padStart(2, "0");
+  const hour = String(safeDate.getHours()).padStart(2, "0");
+  const minute = String(safeDate.getMinutes()).padStart(2, "0");
+
+  return `${month}-${day} ${hour}:${minute}`;
+}
+
+// 读取本地缓存中的我的设计；缓存损坏时返回空数组并给调用层错误提示。
+export function readSavedDesigns(storage) {
+  if (!storage || typeof storage.getItem !== "function") {
+    return { designs: [], error: new Error("当前浏览器不支持本地保存。") };
+  }
+
+  const rawValue = storage.getItem(SAVED_DESIGNS_STORAGE_KEY);
+  if (!rawValue) {
+    return { designs: [], error: null };
+  }
+
+  try {
+    const parsedValue = JSON.parse(rawValue);
+    const designs = Array.isArray(parsedValue) ? parsedValue.filter(isValidSavedDesign).slice(0, SAVED_DESIGN_LIMIT) : [];
+    return { designs, error: Array.isArray(parsedValue) ? null : new Error("本地设计缓存格式无效，已忽略。") };
+  } catch (error) {
+    return { designs: [], error: new Error("本地设计缓存损坏，已忽略。") };
+  }
+}
+
+// 把当前手链状态压缩为可持久化的设计数据。
+function createSavedDesignFromItems(items, now = new Date()) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { design: null, error: new Error("请先添加珠子，再保存设计。") };
+  }
+
+  const productIds = items.map((item) => item.productId);
+  if (productIds.some((productId) => !PRODUCTS.some((product) => product.id === productId))) {
+    return { design: null, error: new Error("手链里有不可用珠子，暂时不能保存。") };
+  }
+
+  const savedAt = now instanceof Date ? now : new Date(now);
+  const timestamp = Number.isFinite(savedAt.getTime()) ? savedAt.getTime() : Date.now();
+  const title = `我的设计 ${formatSavedDesignTime(savedAt)}`;
+  return {
+    design: {
+      author: "@我",
+      desc: "保存在本地的 DIY 手链，可继续二次编辑。",
+      group: "saved",
+      id: `saved-${timestamp}`,
+      likes: 0,
+      productIds,
+      title,
+    },
+    error: null,
+  };
+}
+
+// 保存当前手链到本地缓存；超过 20 条时明确阻断，避免静默覆盖用户设计。
+export function saveBraceletDesign(storage, items, now = new Date()) {
+  const current = readSavedDesigns(storage);
+  if (current.error) {
+    return { design: null, designs: current.designs, error: current.error };
+  }
+
+  if (current.designs.length >= SAVED_DESIGN_LIMIT) {
+    return { design: null, designs: current.designs, error: new Error(`我的设计最多保存 ${SAVED_DESIGN_LIMIT} 个，请先删除旧设计。`) };
+  }
+
+  const created = createSavedDesignFromItems(items, now);
+  if (created.error) {
+    return { design: null, designs: current.designs, error: created.error };
+  }
+
+  const designs = [created.design, ...current.designs];
+  storage.setItem(SAVED_DESIGNS_STORAGE_KEY, JSON.stringify(designs));
+  return { design: created.design, designs, error: null };
+}
+
+// 删除指定本地设计，删除不存在的 id 时返回可提示错误。
+export function removeSavedDesign(storage, designId) {
+  const current = readSavedDesigns(storage);
+  if (current.error) {
+    return { designs: current.designs, error: current.error };
+  }
+
+  const designs = current.designs.filter((design) => design.id !== designId);
+  if (designs.length === current.designs.length) {
+    return { designs, error: new Error("没有找到要删除的设计。") };
+  }
+
+  storage.setItem(SAVED_DESIGNS_STORAGE_KEY, JSON.stringify(designs));
+  return { designs, error: null };
+}
 
 // 侧边分类与商品库 category 字段一一对应。
 const CATEGORIES = [
   { id: "all", label: "全部" },
-  { id: "quartz", label: "水晶" },
-  { id: "moonstone", label: "月光石" },
-  { id: "agate", label: "玛瑙" },
-  { id: "jade", label: "玉石" },
-  { id: "shell", label: "贝珠" },
-  { id: "color", label: "彩石" },
+  { id: "white", label: "白水晶" },
+  { id: "amethyst", label: "紫水晶" },
+  { id: "citrine", label: "黄水晶" },
+  { id: "rose", label: "粉水晶" },
+  { id: "green", label: "绿幽灵" },
+  { id: "obsidian", label: "黑曜石" },
+  { id: "spacer", label: "隔片" },
+  { id: "divider", label: "隔珠" },
+  { id: "flower", label: "花托" },
 ];
 
 // canvas 3D 预览使用的材质色板，和商品 tone 字段保持一致。
 const TONE_PALETTES = {
   black: { core: "#17181d", edge: "#050507", highlight: "#868993", mid: "#3b3d45", shine: "rgba(255,255,255,.42)" },
   clear: { core: "#ececf1", edge: "#a9a8b0", highlight: "#ffffff", mid: "#c9c8cf", shine: "rgba(255,255,255,.76)" },
+  amethyst: { core: "#a073d8", edge: "#3f2a6e", highlight: "#f3e9ff", mid: "#7d56b7", shine: "rgba(243,233,255,.72)" },
+  citrine: { core: "#f6c542", edge: "#9c6f00", highlight: "#fff7d8", mid: "#d99b16", shine: "rgba(255,247,216,.68)" },
+  gold: { core: "#e8c777", edge: "#7d5a14", highlight: "#fff7d8", mid: "#b98a2a", shine: "rgba(255,247,216,.68)" },
+  green: { core: "#5fb38a", edge: "#1f5d44", highlight: "#e8ffec", mid: "#3e8a6a", shine: "rgba(232,255,236,.66)" },
   milk: { core: "#f5f0f1", edge: "#cfc4c7", highlight: "#ffffff", mid: "#e2dadd", shine: "rgba(255,255,255,.72)" },
   rose: { core: "#ecc0cf", edge: "#b97f94", highlight: "#fff4f8", mid: "#d79aae", shine: "rgba(255,246,250,.7)" },
+  silver: { core: "#d6d6e0", edge: "#5a5a72", highlight: "#ffffff", mid: "#aaaebb", shine: "rgba(255,255,255,.74)" },
   tea: { core: "#cfaa82", edge: "#75503f", highlight: "#fff0db", mid: "#a87a5c", shine: "rgba(255,232,196,.62)" },
 };
 const PRODUCT_IMAGE_CACHE = new Map();
 const TONE_BACKGROUNDS = {
   black: "radial-gradient(circle at 29% 23%, #a3a5ad 0 7%, transparent 18%), radial-gradient(circle at 68% 72%, rgb(0 0 0 / 42%), transparent 35%), conic-gradient(from 218deg, #07080b, #4f5159 20%, #111217 42%, #686a72 62%, #050507 83%, #07080b)",
   clear: "radial-gradient(circle at 28% 24%, rgb(255 255 255 / 92%) 0 8%, transparent 18%), radial-gradient(circle at 66% 72%, rgb(102 99 108 / 24%), transparent 32%), conic-gradient(from 218deg at 48% 52%, #8e8c94, #f8f8fb 15%, #b9b8c0 32%, #fff 49%, #bebbc4 73%, #f6f6f9 88%, #8e8c94)",
+  amethyst: "radial-gradient(circle at 28% 24%, #f3e9ff 0 8%, transparent 18%), radial-gradient(circle at 68% 72%, rgb(63 42 110 / 34%), transparent 34%), conic-gradient(from 218deg, #3f2a6e, #a073d8 21%, #6d4bac 43%, #dac4ff 63%, #56388d 82%, #3f2a6e)",
+  citrine: "radial-gradient(circle at 28% 24%, #fff7d8 0 8%, transparent 18%), radial-gradient(circle at 68% 72%, rgb(156 111 0 / 28%), transparent 34%), conic-gradient(from 218deg, #9c6f00, #f6c542 22%, #d89916 43%, #ffe7a3 63%, #a87405 82%, #9c6f00)",
+  gold: "radial-gradient(circle at 28% 24%, #fff7d8 0 8%, transparent 18%), radial-gradient(circle at 68% 72%, rgb(125 90 20 / 28%), transparent 34%), conic-gradient(from 218deg, #7d5a14, #e8c777 22%, #b88a2a 43%, #fbe9a6 63%, #806019 82%, #7d5a14)",
+  green: "radial-gradient(circle at 28% 24%, #e8ffec 0 8%, transparent 18%), radial-gradient(circle at 68% 72%, rgb(31 93 68 / 28%), transparent 34%), conic-gradient(from 218deg, #1f5d44, #5fb38a 22%, #367d5d 43%, #bce6cf 63%, #255f49 82%, #1f5d44)",
   milk: "radial-gradient(circle at 28% 24%, #fff 0 8%, transparent 18%), radial-gradient(circle at 68% 72%, rgb(151 130 136 / 22%), transparent 34%), conic-gradient(from 218deg, #c5babd, #fffdfa 19%, #e3dadd 44%, #fdf9f7 62%, #c8bcc0 83%, #c5babd)",
   rose: "radial-gradient(circle at 28% 24%, #fff7fb 0 8%, transparent 18%), radial-gradient(circle at 68% 72%, rgb(136 71 93 / 24%), transparent 34%), conic-gradient(from 218deg, #a86f86, #f0c6d3 20%, #c98b9f 42%, #fae4eb 62%, #aa7088 83%, #a86f86)",
+  silver: "radial-gradient(circle at 28% 24%, #fff 0 8%, transparent 18%), radial-gradient(circle at 68% 72%, rgb(90 90 114 / 25%), transparent 34%), conic-gradient(from 218deg, #5a5a72, #d6d6e0 22%, #9ca0ad 43%, #f0f0f7 63%, #6d7080 82%, #5a5a72)",
   tea: "radial-gradient(circle at 28% 24%, #fff1db 0 8%, transparent 18%), radial-gradient(circle at 68% 72%, rgb(59 35 26 / 25%), transparent 34%), conic-gradient(from 218deg, #674535, #d8aa7c 22%, #9e6c4e 43%, #eecaa0 63%, #654333 82%, #674535)",
 };
 
@@ -677,6 +908,86 @@ function renderProducts(elements, state) {
   );
   elements.noResults.hidden = products.length > 0;
 }
+
+// 使用现有珠子样式渲染一条设计手链缩略图，保持广场和 DIY 视觉一致。
+function renderDesignPreview(container, items, width = 260, height = 170, beadClassName = "design-preview-bead") {
+  const layout = calculateBeadPositions(items, width, height);
+  warnAndReturn(layout.error);
+  const beadScale = beadClassName === "design-preview-bead" ? 0.48 : 0.82;
+  const positionScale = beadClassName === "design-preview-bead" ? 0.62 : 1;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const beads = layout.positions.map((position) => {
+    const item = items.find((candidate) => candidate.id === position.id);
+    const product = PRODUCTS.find((candidate) => candidate.id === item?.productId);
+    const bead = document.createElement("span");
+    bead.className = `${beadClassName} tone-${product?.tone ?? "clear"}`;
+    const x = centerX + (position.x - centerX) * positionScale;
+    const y = centerY + (position.y - centerY) * positionScale;
+    bead.style.left = `${(x / width) * 100}%`;
+    bead.style.top = `${(y / height) * 100}%`;
+    bead.style.setProperty("--design-bead-size", `${Math.max(13, position.size * beadScale)}px`);
+    bead.style.backgroundImage = buildBeadBackgroundImage(product);
+    if (product?.imageUrl) {
+      bead.classList.add("has-photo");
+    }
+    return bead;
+  });
+  container.replaceChildren(...beads);
+}
+
+// 渲染设计广场卡片，所有文本使用 textContent，避免以后接后端数据时引入注入风险。
+function createDesignCard(design, options = {}) {
+  const result = createBraceletStateFromDesign(design);
+  warnAndReturn(result.error);
+  if (result.error) {
+    return null;
+  }
+
+  const card = document.createElement("article");
+  card.className = "design-item";
+
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.className = "design-open";
+  openButton.dataset.designId = design.id;
+  openButton.setAttribute("aria-label", `查看设计${design.title}，${design.likes.toLocaleString("zh-CN")}人使用`);
+
+  const preview = document.createElement("span");
+  preview.className = "design-preview";
+  renderDesignPreview(preview, result.state.items, 260, 260);
+
+  const likes = createTextElement("span", "design-like", design.group === "saved" ? "本地保存" : `${design.likes.toLocaleString("zh-CN")}人使用`);
+  const title = createTextElement("strong", "design-name", design.title);
+  const author = createTextElement("span", "design-author", design.author);
+  preview.append(likes);
+  openButton.append(preview, title, author);
+  card.append(openButton);
+
+  if (options.withDelete) {
+    const deleteButton = createTextElement("button", "design-delete", "删除");
+    deleteButton.type = "button";
+    deleteButton.dataset.savedDeleteId = design.id;
+    deleteButton.setAttribute("aria-label", `删除${design.title}`);
+    card.append(deleteButton);
+  }
+
+  return card;
+}
+
+function renderDesignGallery(elements, group = "designer", savedDesigns = []) {
+  const designs = group === "saved" ? savedDesigns : getSortedDesignPresets(group);
+  const cards = designs.map((design) => createDesignCard(design, { withDelete: group === "saved" })).filter(Boolean);
+
+  if (group === "saved" && cards.length === 0) {
+    const empty = createTextElement("p", "design-empty", "还没有保存设计，回到 DIY 做一条喜欢的手链吧。");
+    elements.designGrid.replaceChildren(empty);
+    return;
+  }
+
+  elements.designGrid.replaceChildren(...cards);
+}
+
 
 // 按当前状态更新数量提示、总价和清空按钮。
 function renderSummary(elements, state) {
@@ -1037,22 +1348,25 @@ function renderBracelet(elements, state) {
   warnAndReturn(track.error);
   elements.stage.classList.toggle("has-beads", hasBeads);
   elements.track.classList.toggle("has-beads", hasBeads);
+  elements.track.classList.toggle("is-string-covered", state.items.length >= RULES.stringCoveredBeadCount);
   elements.trackCircles.forEach((trackCircle) => trackCircle.setAttribute("r", `${track.viewBoxRadius}`));
   const layout = calculateBeadPositions(state.items, stageWidth, stageHeight);
   warnAndReturn(layout.error);
 
   elements.selectedItems.replaceChildren(
-    ...layout.positions.map((position) => {
+    ...layout.positions.map((position, index) => {
       const item = state.items.find((candidate) => candidate.id === position.id);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "selected-bead";
+      button.classList.toggle("is-design-entering", state.enteringItemIds?.includes(position.id));
       button.classList.toggle("is-entering", position.id === state.lastAddedItemId);
       button.classList.toggle("is-rolling", position.id === state.rollingItemId);
       button.classList.toggle("is-selected", position.id === state.selectedItemId);
       button.dataset.itemId = item.id;
       button.style.left = `${(position.x / stageWidth) * 100}%`;
       button.style.top = `${(position.y / stageHeight) * 100}%`;
+      button.style.setProperty("--enter-delay", `${Math.min(index * 34, 360)}ms`);
       button.style.setProperty("--selected-size", `${position.size}px`);
       button.setAttribute("aria-label", `选择${item.name} ${item.diameterMm}毫米，长按删除，拖到3D展示可预览`);
 
@@ -1089,6 +1403,17 @@ function initializeApp() {
     checkoutButton: document.querySelector("#checkout-button"),
     clearButton: document.querySelector("#clear-button"),
     countStatus: document.querySelector("#count-status"),
+    designBuyButton: document.querySelector("#design-buy-button"),
+    designDesc: document.querySelector("#design-dialog-desc"),
+    designDialog: document.querySelector("#design-dialog"),
+    designGrid: document.querySelector("#design-grid"),
+    designLoading: document.querySelector("#design-loading"),
+    designMeta: document.querySelector("#design-dialog-meta"),
+    designPreview: document.querySelector("#design-dialog-preview"),
+    designRemixButton: document.querySelector("#design-remix-button"),
+    designStats: document.querySelector("#design-stats"),
+    designTabs: [...document.querySelectorAll("[data-design-group]")],
+    designTitle: document.querySelector("#design-dialog-title"),
     emptyState: document.querySelector("#empty-state"),
     feedback: document.querySelector("#editor-feedback"),
     inspectButton: document.querySelector("#inspect-button"),
@@ -1107,14 +1432,18 @@ function initializeApp() {
     orderSummary: document.querySelector("#order-summary"),
     priceStatus: document.querySelector("#price-status"),
     productGrid: document.querySelector("#product-grid"),
+    saveDesignButton: document.querySelector("#save-design-button"),
     searchInput: document.querySelector("#search-input"),
     selectedItems: document.querySelector("#selected-items"),
     soundButton: document.querySelector("#sound-button"),
     stage: document.querySelector("#bracelet-stage"),
+    shell: document.querySelector(".app-shell"),
     track: document.querySelector(".bracelet-track"),
     trackCircle: document.querySelector("#bracelet-track-circle"),
     trackCircles: [...document.querySelectorAll(".rope-circle")],
     usageDialog: document.querySelector("#usage-dialog"),
+    viewButtons: [...document.querySelectorAll("[data-view-target]")],
+    viewPanels: [...document.querySelectorAll("[data-view-panel]")],
     wristStatus: document.querySelector("#wrist-status"),
   };
 
@@ -1136,6 +1465,12 @@ function initializeApp() {
   let soundContext = null;
   let soundMuted = false;
   let suppressProductClick = false;
+  let activeDesignId = null;
+  let activeDesignGroup = "designer";
+  let designEnterTimer = null;
+  const savedDesignReadResult = readSavedDesigns(window.localStorage);
+  warnAndReturn(savedDesignReadResult.error);
+  let savedDesigns = savedDesignReadResult.designs;
 
   // 用 WebAudio 生成短促、低音量的反馈音，不依赖外部音频文件。
   function playInteractionSound(kind) {
@@ -1202,6 +1537,137 @@ function initializeApp() {
     }
 
     notify(error.message);
+  }
+
+  // 在 DIY 和设计广场之间切换一级视图，hash 异常时默认回到 DIY。
+  function showView(viewName, options = {}) {
+    const safeViewName = viewName === "gallery" ? "gallery" : "diy";
+    elements.shell.classList.toggle("is-gallery", safeViewName === "gallery");
+    elements.viewPanels.forEach((panel) => {
+      panel.hidden = panel.dataset.viewPanel !== safeViewName;
+    });
+    elements.viewButtons.forEach((button) => {
+      const isActive = button.dataset.viewTarget === safeViewName;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-selected", String(isActive));
+    });
+
+    if (!options.skipHash) {
+      const nextHash = safeViewName === "gallery" ? "#gallery" : "#diy";
+      if (window.location.hash !== nextHash) {
+        window.location.hash = nextHash;
+      }
+    }
+
+    if (safeViewName === "diy") {
+      window.requestAnimationFrame(() => renderBracelet(elements, state));
+    }
+  }
+
+  // 为设计操作提供短暂 loading 态，避免重复点击导致状态反复写入。
+  function setDesignBusy(isBusy) {
+    elements.designLoading.hidden = !isBusy;
+    elements.designBuyButton.disabled = isBusy;
+    elements.designRemixButton.disabled = isBusy;
+  }
+
+  // 同步设计广场统计和当前 tab 内容，保存/删除后只刷新必要区域。
+  function refreshDesignGallery() {
+    elements.designStats.textContent = createDesignGalleryStats(savedDesigns);
+    renderDesignGallery(elements, activeDesignGroup, savedDesigns);
+  }
+
+  // 切换设计广场二级 tab，异常值回到设计师款，避免 hash 或数据污染导致空白。
+  function switchDesignGroup(group) {
+    activeDesignGroup = group === "customer" || group === "saved" ? group : "designer";
+    elements.designTabs.forEach((tab) => {
+      const isActive = tab.dataset.designGroup === activeDesignGroup;
+      tab.classList.toggle("is-active", isActive);
+      tab.setAttribute("aria-selected", String(isActive));
+    });
+    refreshDesignGallery();
+  }
+
+  // 打开设计详情弹窗，并用同一套珠子预览样式展示大图。
+  function openDesignDialog(designId) {
+    const result = createBraceletStateFromDesignPreset(designId);
+    warnAndReturn(result.error);
+    notifyError(result.error);
+    if (result.error) {
+      return;
+    }
+
+    activeDesignId = designId;
+    elements.designTitle.textContent = result.design.title;
+    elements.designMeta.textContent = `${result.design.author} · ${result.design.likes.toLocaleString("zh-CN")}人使用 · ${result.state.items.length}颗`;
+    elements.designDesc.textContent = result.design.desc;
+    renderDesignPreview(elements.designPreview, result.state.items, 360, 240, "design-dialog-bead");
+    setDesignBusy(false);
+    openModalDialog(elements.designDialog);
+    playInteractionSound("modal");
+  }
+
+  // 将设计复制到当前 DIY 状态，返回是否成功，供购买和二次设计共用。
+  function applyDesignToCurrentState(designId, options = {}) {
+    const result = options.animate
+      ? createBraceletStateFromDesignPreset(designId, { animate: true })
+      : createBraceletStateFromDesignPreset(designId);
+    warnAndReturn(result.error);
+    notifyError(result.error);
+    if (result.error) {
+      return false;
+    }
+
+    state = result.state;
+    if (!options.deferRender) {
+      state = render(elements, state);
+    }
+    return true;
+  }
+
+  // 将当前 DIY 手链保存到“我的设计”，先存本地缓存，后续可平滑替换为后端接口。
+  function saveCurrentDesign() {
+    const result = saveBraceletDesign(window.localStorage, state.items);
+    warnAndReturn(result.error);
+    if (result.error) {
+      notifyError(result.error);
+      return;
+    }
+
+    savedDesigns = result.designs;
+    refreshDesignGallery();
+    notify("已保存到我的设计");
+    playInteractionSound("modal");
+  }
+
+  // 打开本地设计时直接回到 DIY 修改，不再多弹一层详情。
+  function applySavedDesignToCurrentState(designId) {
+    const design = savedDesigns.find((candidate) => candidate.id === designId);
+    const result = createBraceletStateFromDesign(design);
+    warnAndReturn(result.error);
+    notifyError(result.error);
+    if (result.error) {
+      return;
+    }
+
+    state = result.state;
+    state = render(elements, state);
+    showView("diy");
+    notify("已载入我的设计，可继续修改");
+  }
+
+  // 删除我的设计并刷新统计，失败时保留当前列表。
+  function deleteSavedDesign(designId) {
+    const result = removeSavedDesign(window.localStorage, designId);
+    warnAndReturn(result.error);
+    if (result.error) {
+      notifyError(result.error);
+      return;
+    }
+
+    savedDesigns = result.designs;
+    refreshDesignGallery();
+    notify("已删除设计");
   }
 
   // 播放视频模板里的商品卡按压涟漪，给用户明确的“从这里装珠”反馈。
@@ -1371,7 +1837,47 @@ function initializeApp() {
 
     return { type: "none" };
   }
+  refreshDesignGallery();
   state = render(elements, state);
+  showView(window.location.hash === "#gallery" ? "gallery" : "diy", { skipHash: true });
+
+  window.addEventListener("hashchange", () => {
+    showView(window.location.hash === "#gallery" ? "gallery" : "diy", { skipHash: true });
+  });
+
+  elements.viewButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      showView(button.dataset.viewTarget);
+      playInteractionSound("modal");
+    });
+  });
+
+  elements.designGrid.addEventListener("click", (event) => {
+    const deleteButton = event.target.closest("button[data-saved-delete-id]");
+    if (deleteButton) {
+      deleteSavedDesign(deleteButton.dataset.savedDeleteId);
+      return;
+    }
+
+    const designButton = event.target.closest("button[data-design-id]");
+    if (!designButton) {
+      return;
+    }
+
+    if (activeDesignGroup === "saved") {
+      applySavedDesignToCurrentState(designButton.dataset.designId);
+      return;
+    }
+
+    openDesignDialog(designButton.dataset.designId);
+  });
+
+  elements.designTabs.forEach((button) => {
+    button.addEventListener("click", () => {
+      switchDesignGroup(button.dataset.designGroup);
+      playInteractionSound("tap");
+    });
+  });
 
   elements.categoryList.addEventListener("click", (event) => {
     const categoryButton = event.target.closest("button[data-category]");
@@ -1387,6 +1893,8 @@ function initializeApp() {
     state = { ...state, query: event.target.value };
     state = render(elements, state);
   });
+
+  elements.saveDesignButton.addEventListener("click", saveCurrentDesign);
 
   elements.productGrid.addEventListener("click", (event) => {
     const productButton = event.target.closest("button[data-product-id]");
@@ -1686,6 +2194,63 @@ function initializeApp() {
   elements.orderConfirmButton.addEventListener("click", () => {
     notify("订单已确认（演示）");
     closeModalDialog(elements.orderDialog);
+  });
+
+  elements.designDialog.addEventListener("click", (event) => {
+    if (event.target === elements.designDialog || event.target.closest(".design-close")) {
+      closeModalDialog(elements.designDialog);
+    }
+  });
+
+  elements.designDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeModalDialog(elements.designDialog);
+  });
+
+  elements.designBuyButton.addEventListener("click", () => {
+    if (!activeDesignId) {
+      notify("请先选择一个设计");
+      return;
+    }
+
+    setDesignBusy(true);
+    if (!applyDesignToCurrentState(activeDesignId)) {
+      setDesignBusy(false);
+      return;
+    }
+
+    closeModalDialog(elements.designDialog, () => {
+      setDesignBusy(false);
+      showOrderDialog(state.items);
+    });
+  });
+
+  elements.designRemixButton.addEventListener("click", () => {
+    if (!activeDesignId) {
+      notify("请先选择一个设计");
+      return;
+    }
+
+    setDesignBusy(true);
+    if (!applyDesignToCurrentState(activeDesignId, { animate: true, deferRender: true })) {
+      setDesignBusy(false);
+      return;
+    }
+
+    closeModalDialog(elements.designDialog, () => {
+      showView("diy");
+      window.requestAnimationFrame(() => {
+        state = render(elements, state);
+      });
+      window.clearTimeout(designEnterTimer);
+      designEnterTimer = window.setTimeout(() => {
+        state = { ...state, enteringItemIds: [] };
+        designEnterTimer = null;
+      }, 980);
+      setDesignBusy(false);
+      notify("已复制到 DIY，可以继续二次设计");
+      playInteractionSound("add");
+    });
   });
 
   elements.noticeButton.addEventListener("click", () => {
